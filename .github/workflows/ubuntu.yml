@@ -1,0 +1,47 @@
+name: Ubuntu Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+          sudo apt update
+          sudo apt install gcc g++ cmake libgtest-dev -y
+          mkdir -p $HOME/build
+          cd $HOME/build
+          sudo cmake /usr/src/googletest/googletest
+          sudo make
+          sudo cp lib/libgtest* /usr/lib/
+          cd ..
+          sudo rm -rf build
+          sudo mkdir /usr/local/lib/googletest
+          sudo ln -s /usr/lib/libgtest.a /usr/local/lib/googletest/libgtest.a
+          sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/googletest/libgtest_main.a
+          
+      - name: Configure
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DUNIT_TESTING=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_BUILD_TYPE=Debug ..
+
+      - name: Build
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Test
+        run: |
+          cd build
+          ctest --verbose
