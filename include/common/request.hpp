@@ -3,15 +3,15 @@
 #include <cstdint>
 
 enum class RequestType {
-    CREATE_FILE,
+    UPLOAD_FILE,
     READ_FILE,
-    WRITE_FILE,
     APPEND_FILE,
     DELETE_FILE,
     INFO_FILE,
     CREATE_DIR,
     LIST_DIR,
     DELETE_DIR,
+    TERMINATE
 };
 
 struct Request {
