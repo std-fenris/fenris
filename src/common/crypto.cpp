@@ -1,20 +1,20 @@
 #include "common/crypto.hpp"
+
 #include <cryptopp/aes.h>
+#include <cryptopp/eccrypto.h>
 #include <cryptopp/filters.h>
 #include <cryptopp/gcm.h>
+#include <cryptopp/hkdf.h>
+#include <cryptopp/oids.h>
 #include <cryptopp/osrng.h>
 #include <cryptopp/secblock.h>
+#include <cryptopp/sha.h>
+
 #include <stdexcept>
 #include <vector>
 
 namespace fenris {
 namespace common {
-
-// Constants
-constexpr size_t AES_GCM_TAG_SIZE =
-    16; // 16 bytes (128 bits) authentication tag
-constexpr size_t AES_GCM_IV_SIZE =
-    12; // 12 bytes (96 bits) IV as recommended for GCM
 
 using namespace CryptoPP;
 
@@ -102,6 +102,122 @@ decrypt_data_aes_gcm(const std::vector<uint8_t> &ciphertext,
         return {plaintext, EncryptionError::SUCCESS};
     } catch (...) {
         return {std::vector<uint8_t>(), EncryptionError::DECRYPTION_FAILED};
+    }
+}
+
+/**
+ * Generates an ECDH key pair using the NIST P-256 (secp256r1) curve.
+ */
+std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, ECDHError>
+generate_ecdh_keypair()
+{
+    try {
+        // Use the NIST P-256 curve
+        ECDH<ECP>::Domain domain(ASN1::secp256r1());
+
+        // Generate a random private key
+        AutoSeededRandomPool rng;
+        SecByteBlock private_key(domain.PrivateKeyLength());
+        domain.GeneratePrivateKey(rng, private_key);
+
+        // Calculate the corresponding public key
+        SecByteBlock public_key(domain.PublicKeyLength());
+        domain.GeneratePublicKey(rng, private_key, public_key);
+
+        std::vector<uint8_t> private_key_vec(private_key.begin(),
+                                             private_key.end());
+        std::vector<uint8_t> public_key_vec(public_key.begin(),
+                                            public_key.end());
+
+        return {std::move(private_key_vec),
+                std::move(public_key_vec),
+                ECDHError::SUCCESS};
+    } catch (...) {
+        return {std::vector<uint8_t>(),
+                std::vector<uint8_t>(),
+                ECDHError::KEY_GENERATION_FAILED};
+    }
+}
+
+/**
+ * Computes a shared secret using our private key and the peer's public key.
+ */
+std::pair<std::vector<uint8_t>, ECDHError>
+compute_ecdh_shared_secret(const std::vector<uint8_t> &private_key,
+                           const std::vector<uint8_t> &peer_public_key)
+{
+    try {
+        // Use the NIST P-256 curve
+        ECDH<ECP>::Domain domain(ASN1::secp256r1());
+
+        // Convert from vector<uint8_t> to SecByteBlock
+        SecByteBlock private_key_block(private_key.data(), private_key.size());
+        SecByteBlock public_key_block(peer_public_key.data(),
+                                      peer_public_key.size());
+
+        // Compute the shared secret
+        SecByteBlock shared_secret(domain.AgreedValueLength());
+        AutoSeededRandomPool rng;
+
+        // Make sure the key agreement succeeded
+        if (!domain.Agree(shared_secret, private_key_block, public_key_block)) {
+            return {std::vector<uint8_t>(), ECDHError::SHARED_SECRET_FAILED};
+        }
+
+        std::vector<uint8_t> shared_secret_vec(shared_secret.begin(),
+                                               shared_secret.end());
+
+        return {std::move(shared_secret_vec), ECDHError::SUCCESS};
+    } catch (...) {
+        return {std::vector<uint8_t>(), ECDHError::SHARED_SECRET_FAILED};
+    }
+}
+
+/**
+ * Derives an AES key from a shared secret using HKDF.
+ */
+std::pair<std::vector<uint8_t>, ECDHError>
+derive_key_from_shared_secret(const std::vector<uint8_t> &shared_secret,
+                              size_t key_size,
+                              const std::vector<uint8_t> &context)
+{
+    try {
+        if (key_size != 16 && key_size != 24 && key_size != 32) {
+            return {std::vector<uint8_t>(), ECDHError::INVALID_KEY_SIZE};
+        }
+
+        // Default salt (can be empty for HKDF)
+        std::vector<uint8_t> salt =
+            {'f', 'e', 'n', 'r', 'i', 's', '-', 's', 'a', 'l', 't'};
+
+        // Default info (can be customized via context parameter)
+        std::vector<uint8_t> info = {'A', 'E', 'S', '-', 'K', 'e', 'y'};
+        if (!context.empty()) {
+            info.insert(info.end(), context.begin(), context.end());
+        }
+
+        // Output size: key_size (for AES key)
+        const size_t output_size = key_size;
+
+        // Derive key material using HKDF
+        HKDF<SHA256> hkdf;
+        SecByteBlock derived_key_material(output_size);
+
+        hkdf.DeriveKey(derived_key_material,
+                       derived_key_material.size(),
+                       shared_secret.data(),
+                       shared_secret.size(),
+                       salt.data(),
+                       salt.size(),
+                       info.data(),
+                       info.size());
+
+        std::vector<uint8_t> derived_key(derived_key_material.begin(),
+                                         derived_key_material.end());
+
+        return {std::move(derived_key), ECDHError::SUCCESS};
+    } catch (...) {
+        return {std::vector<uint8_t>(), ECDHError::KEY_DERIVATION_FAILED};
     }
 }
 
