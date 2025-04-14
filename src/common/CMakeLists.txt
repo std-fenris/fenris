@@ -6,6 +6,7 @@ verbose_message("Setting up common library...")
 set(
     COMMON_SOURCES
     compression.cpp
+    crypto.cpp
 )
 
 # Create a static library from the common sources
