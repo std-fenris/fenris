@@ -19,16 +19,11 @@ add_executable(fenris_client ${CLIENT_SOURCES})
 # Configure compile options
 target_compile_features(fenris_client PRIVATE cxx_std_20)
 
-# Include directories from found packages
-include_directories(${ZLIB_INCLUDE_DIRS})
-include_directories(${CRYPTOPP_INCLUDE_DIRS})
-
 # Link libraries
 target_link_libraries(fenris_client
     PRIVATE
     pthread
-    ${ZLIB_LIBRARIES}
-    ${CRYPTOPP_LIBRARIES}
+    fenris_common
 )
 
 # Install the client executable
