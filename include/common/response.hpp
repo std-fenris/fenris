@@ -5,4 +5,4 @@ enum class ResponseType {
     LIST_DIR,
     SUCCESS,
     ERROR,
-}
+};
