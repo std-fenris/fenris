@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+
+include("${CMAKE_SOURCE_DIR}/cmake/Utils.cmake")
+verbose_message("Setting up common library...")
+
+set(
+    COMMON_SOURCES
+    compression.cpp
+)
+
+# Create a static library from the common sources
+add_library(fenris_common STATIC ${COMMON_SOURCES})
+
+# Configure compile options
+target_compile_features(fenris_common PRIVATE cxx_std_20)
+
+# Make the include directory available to users of this library
+target_include_directories(fenris_common PUBLIC
+    ${FENRIS_EXTERNAL_INCLUDES}
+)
+
+# Link needed libraries
+target_link_libraries(fenris_common
+    PUBLIC
+    ${FENRIS_EXTERNAL_LIBS}
+)
+
+verbose_message("Common library setup - done")

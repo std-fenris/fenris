@@ -14,6 +14,18 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 find_package(ZLIB REQUIRED)
 find_package(CryptoPP REQUIRED)
 
+# Define variables for libraries to use throughout the project
+set(FENRIS_EXTERNAL_LIBS ${ZLIB_LIBRARIES} ${CRYPTOPP_LIBRARIES})
+set(FENRIS_EXTERNAL_INCLUDES ${ZLIB_INCLUDE_DIRS} ${CRYPTOPP_INCLUDE_DIRS})
+
+# Add GTest package for unit testing
+if(UNIT_TESTING)
+    find_package(GTest REQUIRED)
+    if(NOT GTest_FOUND)
+        message(FATAL_ERROR "Google Test framework not found!")
+    endif()
+endif()
+
 # Define release type flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
@@ -32,6 +44,9 @@ option(${PROJECT_NAME}_VERBOSE_OUTPUT "Enable verbose output" OFF)
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+# Add subdirectory for common components first
+add_subdirectory(src/common)
 
 # Add subdirectories for client and server
 add_subdirectory(src/client)
