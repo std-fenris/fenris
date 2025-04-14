@@ -4,8 +4,15 @@ project(fenris LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Add cmake directory to module path
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 # Set output directories for binaries directly in build folder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+# Find required packages
+find_package(ZLIB REQUIRED)
+find_package(CryptoPP REQUIRED)
 
 # Define release type flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

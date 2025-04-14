@@ -19,10 +19,16 @@ add_executable(fenris_server ${SERVER_SOURCES})
 # Configure compile options
 target_compile_features(fenris_server PRIVATE cxx_std_20)
 
+# Include directories from found packages
+include_directories(${ZLIB_INCLUDE_DIRS})
+include_directories(${CRYPTOPP_INCLUDE_DIRS})
+
 # Link libraries
 target_link_libraries(fenris_server
     PRIVATE
     pthread
+    ${ZLIB_LIBRARIES}
+    ${CRYPTOPP_LIBRARIES}
 )
 
 # Install the server executable
