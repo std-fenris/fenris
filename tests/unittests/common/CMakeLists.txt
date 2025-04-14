@@ -5,3 +5,4 @@ verbose_message("Setting up common unit tests...")
 
 add_fenris_test(compression_test compression_test.cpp)
 add_fenris_test(crypto_test crypto_test.cpp)
+add_fenris_test(file_operations_test file_operations_test.cpp)
