@@ -8,6 +8,7 @@ set(
     compression.cpp
     crypto.cpp
     file_operations.cpp
+    logging.cpp
 )
 
 # Create a static library from the common sources
