@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(fenris LANGUAGES CXX)
 
+# Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Add cmake directory to module path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -10,13 +12,14 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # Set output directories for binaries directly in build folder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# Find required packages
+# Find dependencies
 find_package(ZLIB REQUIRED)
 find_package(CryptoPP REQUIRED)
+find_package(spdlog REQUIRED)
 
 # Define variables for libraries to use throughout the project
-set(FENRIS_EXTERNAL_LIBS ${ZLIB_LIBRARIES} ${CRYPTOPP_LIBRARIES})
-set(FENRIS_EXTERNAL_INCLUDES ${ZLIB_INCLUDE_DIRS} ${CRYPTOPP_INCLUDE_DIRS})
+set(FENRIS_EXTERNAL_LIBS ${ZLIB_LIBRARIES} ${CRYPTOPP_LIBRARIES} spdlog::spdlog)
+set(FENRIS_EXTERNAL_INCLUDES ${ZLIB_INCLUDE_DIRS} ${CRYPTOPP_INCLUDE_DIRS} ${SPDLOG_INCLUDE_DIR})
 
 # Add GTest package for unit testing
 if(UNIT_TESTING)
@@ -40,10 +43,8 @@ endif()
 # Set verbose output option
 option(${PROJECT_NAME}_VERBOSE_OUTPUT "Enable verbose output" OFF)
 
-# Include directories
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+# Add include directory
+include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # Add subdirectory for common components first
 add_subdirectory(src/common)
