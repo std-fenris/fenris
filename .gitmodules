@@ -12,4 +12,4 @@
 
 [submodule "tests/googletest"]
 	path = tests/googletest
-	url = https://github.com/google/googltest
+	url = https://github.com/google/googletest
