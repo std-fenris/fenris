@@ -23,7 +23,6 @@ encrypt_data_aes_gcm(const std::vector<uint8_t> &plaintext,
                      const std::vector<uint8_t> &key,
                      const std::vector<uint8_t> &iv)
 {
-    // Check for empty input
     if (plaintext.empty()) {
         return {std::vector<uint8_t>(), EncryptionError::SUCCESS};
     }
@@ -65,7 +64,6 @@ decrypt_data_aes_gcm(const std::vector<uint8_t> &ciphertext,
                      const std::vector<uint8_t> &key,
                      const std::vector<uint8_t> &iv)
 {
-    // Check for empty input
     if (ciphertext.empty()) {
         return {std::vector<uint8_t>(), EncryptionError::SUCCESS};
     }
@@ -129,9 +127,7 @@ generate_ecdh_keypair()
         std::vector<uint8_t> public_key_vec(public_key.begin(),
                                             public_key.end());
 
-        return {std::move(private_key_vec),
-                std::move(public_key_vec),
-                ECDHError::SUCCESS};
+        return {private_key_vec, public_key_vec, ECDHError::SUCCESS};
     } catch (...) {
         return {std::vector<uint8_t>(),
                 std::vector<uint8_t>(),
@@ -167,7 +163,7 @@ compute_ecdh_shared_secret(const std::vector<uint8_t> &private_key,
         std::vector<uint8_t> shared_secret_vec(shared_secret.begin(),
                                                shared_secret.end());
 
-        return {std::move(shared_secret_vec), ECDHError::SUCCESS};
+        return {shared_secret_vec, ECDHError::SUCCESS};
     } catch (...) {
         return {std::vector<uint8_t>(), ECDHError::SHARED_SECRET_FAILED};
     }
@@ -215,7 +211,7 @@ derive_key_from_shared_secret(const std::vector<uint8_t> &shared_secret,
         std::vector<uint8_t> derived_key(derived_key_material.begin(),
                                          derived_key_material.end());
 
-        return {std::move(derived_key), ECDHError::SUCCESS};
+        return {derived_key, ECDHError::SUCCESS};
     } catch (...) {
         return {std::vector<uint8_t>(), ECDHError::KEY_DERIVATION_FAILED};
     }
