@@ -13,21 +13,43 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # Find dependencies
-find_package(ZLIB REQUIRED)
-find_package(CryptoPP REQUIRED)
-find_package(spdlog REQUIRED)
+set(SPDLOG_ENABLE_PCH ON)
+add_subdirectory(include/external/spdlog)
+
+set(ZLIB_BUILD_TESTING OFF)
+add_subdirectory(include/external/zlib)
+
+# Setup Crypto++ as an imported library
+set(CRYPTOPP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/external/cryptopp)
+set(CRYPTOPP_INCLUDE_DIR ${CRYPTOPP_SOURCE_DIR})
+set(CRYPTOPP_LIBRARY_DIR ${CMAKE_BINARY_DIR}/cryptopp)
+
+# Create imported target for Crypto++
+add_library(cryptopp STATIC IMPORTED)
+set_target_properties(cryptopp PROPERTIES
+    IMPORTED_LOCATION ${CRYPTOPP_LIBRARY_DIR}/libcryptopp.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CRYPTOPP_INCLUDE_DIR}
+)
+
+# Add custom command to build Crypto++ using its GNUmakefile
+add_custom_command(
+    OUTPUT ${CRYPTOPP_LIBRARY_DIR}/libcryptopp.a
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CRYPTOPP_LIBRARY_DIR}
+    COMMAND $(MAKE) -C ${CRYPTOPP_SOURCE_DIR} static
+    COMMAND ${CMAKE_COMMAND} -E copy ${CRYPTOPP_SOURCE_DIR}/libcryptopp.a ${CRYPTOPP_LIBRARY_DIR}/libcryptopp.a
+    WORKING_DIRECTORY ${CRYPTOPP_SOURCE_DIR}
+    DEPENDS ${CRYPTOPP_SOURCE_DIR}/GNUmakefile
+    COMMENT "Building Crypto++ library"
+    VERBATIM
+)
+
+# Add custom target for Crypto++
+add_custom_target(build_cryptopp DEPENDS ${CRYPTOPP_LIBRARY_DIR}/libcryptopp.a)
+add_dependencies(cryptopp build_cryptopp)
 
 # Define variables for libraries to use throughout the project
-set(FENRIS_EXTERNAL_LIBS ${ZLIB_LIBRARIES} ${CRYPTOPP_LIBRARIES} spdlog::spdlog)
-set(FENRIS_EXTERNAL_INCLUDES ${ZLIB_INCLUDE_DIRS} ${CRYPTOPP_INCLUDE_DIRS} ${SPDLOG_INCLUDE_DIR})
-
-# Add GTest package for unit testing
-if(UNIT_TESTING)
-    find_package(GTest REQUIRED)
-    if(NOT GTest_FOUND)
-        message(FATAL_ERROR "Google Test framework not found!")
-    endif()
-endif()
+set(FENRIS_EXTERNAL_LIBS cryptopp spdlog::spdlog zlib)
+set(FENRIS_EXTERNAL_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include/external)
 
 # Define release type flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
