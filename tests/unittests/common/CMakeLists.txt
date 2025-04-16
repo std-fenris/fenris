@@ -10,6 +10,7 @@ function(add_fenris_unittest test_name)
         gtest
         gtest_main
         fenris_common
+        fenris_proto
     )
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -22,3 +23,7 @@ add_fenris_unittest(compression_test)
 add_fenris_unittest(encryption_test)
 add_fenris_unittest(ecdh_test)
 add_fenris_unittest(file_operations_test)
+add_fenris_unittest(request_test)
+add_fenris_unittest(response_test)
+
+verbose_message("Common unit tests setup - done")

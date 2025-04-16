@@ -7,15 +7,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Add cmake directory to module path
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "cmake")
 
 # Set output directories for binaries directly in build folder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# Find dependencies
+# SPDLOG
 set(SPDLOG_ENABLE_PCH ON)
 add_subdirectory(include/external/spdlog)
 
+# ZLIB
 set(ZLIB_BUILD_TESTING OFF)
 add_subdirectory(include/external/zlib)
 
@@ -47,9 +48,14 @@ add_custom_command(
 add_custom_target(build_cryptopp DEPENDS ${CRYPTOPP_LIBRARY_DIR}/libcryptopp.a)
 add_dependencies(cryptopp build_cryptopp)
 
+# Include protobuf files
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+add_subdirectory(proto)
+
 # Define variables for libraries to use throughout the project
-set(FENRIS_EXTERNAL_LIBS cryptopp spdlog::spdlog zlib)
-set(FENRIS_EXTERNAL_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include/external)
+set(FENRIS_EXTERNAL_LIBS cryptopp spdlog::spdlog zlib ${PROTOBUF_LIBRARIES})
+set(FENRIS_EXTERNAL_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include/external ${PROTOBUF_INCLUDE_DIRS})
 
 # Define release type flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -67,6 +73,7 @@ option(${PROJECT_NAME}_VERBOSE_OUTPUT "Enable verbose output" OFF)
 
 # Add include directory
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_BINARY_DIR}/proto)
 
 # Add subdirectory for common components first
 add_subdirectory(src/common)
