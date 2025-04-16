@@ -1,24 +1,17 @@
-// common request related data needed by both server and client
+#ifndef FENRIS_COMMON_REQUEST_HPP
+#define FENRIS_COMMON_REQUEST_HPP
 
-#include <cstdint>
+#include "fenris.pb.h"
+#include <string>
 
-enum class RequestType {
-    CREATE_FILE,
-    READ_FILE,
-    WRITE_FILE,
-    APPEND_FILE,
-    DELETE_FILE,
-    INFO_FILE,
-    CREATE_DIR,
-    LIST_DIR,
-    DELETE_DIR,
-    TERMINATE
-};
+namespace fenris {
+namespace common {
 
-struct Request {
-    RequestType command;
-    char filename[256];
-    uint32_t ip_addr;
-    uint32_t size_d;
-    uint8_t data[];
-};
+std::vector<uint8_t> serialize_request(const fenris::Request &request);
+fenris::Request deserialize_request(const std::vector<uint8_t> &data);
+std::string request_to_json(const fenris::Request &request);
+
+} // namespace common
+} // namespace fenris
+
+#endif // FENRIS_COMMON_REQUEST_HPP
