@@ -14,7 +14,7 @@ set(CLIENT_SOURCES
 )
 
 # Create client executable
-add_executable(fenris_client ${CLIENT_SOURCES})
+add_library(fenris_client STATIC ${CLIENT_SOURCES})
 
 # Configure compile options
 target_compile_features(fenris_client PRIVATE cxx_std_20)

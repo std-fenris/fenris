@@ -14,7 +14,7 @@ set(SERVER_SOURCES
 )
 
 # Create server executable
-add_executable(fenris_server ${SERVER_SOURCES})
+add_library(fenris_server STATIC ${SERVER_SOURCES})
 
 # Configure compile options
 target_compile_features(fenris_server PRIVATE cxx_std_20)
