@@ -1,4 +1,5 @@
-#pragma once
+#ifndef FENRIS_COMMON_COMPRESSION_HPP
+#define FENRIS_COMMON_COMPRESSION_HPP
 
 #include <cstdint>
 #include <utility>
@@ -43,3 +44,5 @@ decompress_data(const std::vector<uint8_t> &input, size_t original_size);
 
 } // namespace common
 } // namespace fenris
+
+#endif // FENRIS_COMMON_COMPRESSION_HPP
