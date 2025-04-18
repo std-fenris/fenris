@@ -1,4 +1,5 @@
 #include "common/crypto.hpp"
+#include <algorithm>
 #include <gtest/gtest.h>
 #include <random>
 #include <string>
