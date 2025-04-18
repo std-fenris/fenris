@@ -62,7 +62,7 @@ class ConnectionManager {
      * @brief Set handler for server responses
      * @param handler Function that processes server responses
      */
-    void set_server_handler(std::shared_ptr<ServerHandler> handler);
+    void set_server_handler(std::unique_ptr<ServerHandler> handler);
 
     /**
      * @brief Send a request to the server
@@ -87,7 +87,7 @@ class ConnectionManager {
   private:
     std::string m_server_hostname;
     std::string m_server_port;
-    std::shared_ptr<ServerHandler>
+    std::unique_ptr<ServerHandler>
         m_server_handler; // Added missing handler member
     // Handler for processing server responses
     bool m_non_blocking_mode;

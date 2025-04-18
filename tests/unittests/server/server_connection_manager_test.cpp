@@ -236,14 +236,17 @@ class ServerConnectionManagerTest : public ::testing::Test {
         m_port = 12345 + (rand() % 1000); // Random high port to avoid conflicts
         m_port_str = std::to_string(m_port);
         // Keep connection open by default in mock handler for most tests
-        m_handler =
-            std::make_shared<MockClientHandler>(true,
+        auto handler_ptr =
+            std::make_unique<MockClientHandler>(true,
                                                 10); // Allow multiple requests
+        // Store the raw pointer before moving the unique_ptr
+        m_mock_handler_ptr = handler_ptr.get();
 
         // Create connection manager
         m_connection_manager =
             std::make_unique<ConnectionManager>("127.0.0.1", m_port_str);
-        m_connection_manager->set_client_handler(m_handler);
+        // Use std::move to transfer ownership of the unique_ptr
+        m_connection_manager->set_client_handler(std::move(handler_ptr));
 
         // Enable non-blocking mode for testing to avoid hanging
         m_connection_manager->set_non_blocking_mode(false);
@@ -324,7 +327,8 @@ class ServerConnectionManagerTest : public ::testing::Test {
     }
 
     std::unique_ptr<ConnectionManager> m_connection_manager;
-    std::shared_ptr<MockClientHandler> m_handler;
+    // Store a raw pointer to the mock handler for test verification
+    MockClientHandler *m_mock_handler_ptr = nullptr;
     int m_port;
     std::string m_port_str;
     std::vector<int> m_client_sockets;
@@ -381,7 +385,8 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
     ASSERT_EQ(response.data(), "PING"); // Mock handler echoes command name
 
     // Verify handler received the request
-    auto received_requests = m_handler->get_received_requests();
+    // Use the raw pointer m_mock_handler_ptr
+    auto received_requests = m_mock_handler_ptr->get_received_requests();
     ASSERT_EQ(received_requests.size(), 1);
     ASSERT_TRUE(
         google::protobuf::util::MessageDifferencer::Equals(received_requests[0],
@@ -483,11 +488,13 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
     // Wait for server processing
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    auto handled_sockets = m_handler->get_handled_client_ids();
+    // Use the raw pointer m_mock_handler_ptr
+    auto handled_sockets = m_mock_handler_ptr->get_handled_client_ids();
     ASSERT_EQ(handled_sockets.size(),
               3); // Check if handler processed 3 requests
 
-    auto received_requests = m_handler->get_received_requests();
+    // Use the raw pointer m_mock_handler_ptr
+    auto received_requests = m_mock_handler_ptr->get_received_requests();
     ASSERT_EQ(received_requests.size(), 3);
     ASSERT_EQ(received_requests[0].command(), fenris::RequestType::PING);
     ASSERT_EQ(received_requests[1].command(), fenris::RequestType::READ_FILE);
@@ -596,7 +603,8 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     // Check that handler received the expected requests
-    auto received_requests = m_handler->get_received_requests();
+    // Use the raw pointer m_mock_handler_ptr
+    auto received_requests = m_mock_handler_ptr->get_received_requests();
     ASSERT_EQ(received_requests.size(), 2);
 
     // Verify first request (READ_FILE)

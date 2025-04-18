@@ -134,9 +134,9 @@ bool ConnectionManager::is_connected() const
 
 // Add implementation for set_server_handler
 void ConnectionManager::set_server_handler(
-    std::shared_ptr<ServerHandler> handler)
+    std::unique_ptr<ServerHandler> handler)
 {
-    m_server_handler = handler;
+    m_server_handler = std::move(handler);
 }
 
 // Updated send_data to handle protobuf Request

@@ -61,7 +61,7 @@ class ConnectionManager {
      * @brief Set handler for client connections
      * @param handler Function that processes client requests
      */
-    void set_client_handler(std::shared_ptr<ClientHandler> handler);
+    void set_client_handler(std::unique_ptr<ClientHandler> handler);
 
     /**
      * @brief Get number of active clients
@@ -96,7 +96,7 @@ class ConnectionManager {
 
     std::string m_hostname;
     std::string m_port;
-    std::shared_ptr<ClientHandler> m_client_handler;
+    std::unique_ptr<ClientHandler> m_client_handler;
     int32_t m_server_socket{-1};
     std::atomic<bool> m_running{false};
     std::thread m_listen_thread;

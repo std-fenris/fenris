@@ -189,9 +189,9 @@ void ConnectionManager::stop()
 }
 
 void ConnectionManager::set_client_handler(
-    std::shared_ptr<ClientHandler> handler)
+    std::unique_ptr<ClientHandler> handler)
 {
-    m_client_handler = handler;
+    m_client_handler = std::move(handler);
 }
 
 size_t ConnectionManager::get_active_client_count() const
