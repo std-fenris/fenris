@@ -11,6 +11,7 @@ set(
     logging.cpp
     request.cpp
     response.cpp
+    network_utils.cpp
     ${PROTO_SRCS}
 )
 

@@ -50,7 +50,8 @@ add_dependencies(cryptopp build_cryptopp)
 
 # Include protobuf files
 include(FindProtobuf)
-find_package(Protobuf REQUIRED)
+find_package(Protobuf 3.21 EXACT REQUIRED)
+message(STATUS "Protobuf version: ${Protobuf_VERSION}")
 add_subdirectory(proto)
 
 # Define variables for libraries to use throughout the project
