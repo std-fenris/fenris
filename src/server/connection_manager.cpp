@@ -146,7 +146,19 @@ void ConnectionManager::stop()
         if (wake_socket >= 0) {
             struct sockaddr_in server_addr;
             server_addr.sin_family = AF_INET;
-            server_addr.sin_port = htons(std::stoi(m_port));
+
+            try {
+                server_addr.sin_port = htons(std::stoi(m_port));
+            } catch (const std::invalid_argument &e) {
+                std::cerr << "Invalid port number: " << m_port
+                          << ". Error: " << e.what() << std::endl;
+                return;
+            } catch (const std::out_of_range &e) {
+                std::cerr << "Port number out of range: " << m_port
+                          << ". Error: " << e.what() << std::endl;
+                return;
+            }
+
             inet_pton(AF_INET, m_hostname.c_str(), &server_addr.sin_addr);
 
             // Connect to ourselves to unblock accept()
