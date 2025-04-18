@@ -31,8 +31,8 @@ class ConnectionManager {
   public:
     /**
      * @brief Constructor
+     * @param hostname Hostname or IP address to bind to
      * @param port Port to listen on
-     * @param client_handler Handler for client requests
      */
     ConnectionManager(const std::string &hostname, const std::string &port);
 
@@ -77,8 +77,8 @@ class ConnectionManager {
 
     /**
      * @brief Handle client connection in its own thread
-     * @param clientSocket Socket descriptor for the client connection
-     * @param clientId Unique identifier for the client
+     * @param client_socket Socket descriptor for the client connection
+     * @param client_id Unique identifier for the client
      */
     void handle_client(uint32_t client_socket, uint32_t client_id);
 
