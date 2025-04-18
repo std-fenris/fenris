@@ -17,7 +17,6 @@
 namespace fenris {
 namespace server {
 
-// Forward declarations
 class ClientHandler;
 
 /**
@@ -103,13 +102,10 @@ class ConnectionManager {
     bool m_non_blocking_mode;
 
     // Client management
-    std::unordered_map<uint32_t, uint32_t>
-        m_client_sockets; // clientId -> socket
+    std::unordered_map<uint32_t, uint32_t> m_client_sockets;
     std::vector<std::thread> m_client_threads;
     mutable std::mutex m_client_mutex;
     std::atomic<uint32_t> m_next_client_id{1};
-
-    // Client request handler
 };
 
 /**

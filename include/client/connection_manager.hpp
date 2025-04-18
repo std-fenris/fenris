@@ -17,7 +17,6 @@ namespace client {
 
 using ServerInfo = fenris::client::ServerInfo;
 
-// Forward declaration for server request handler interface
 class ServerHandler;
 
 /**
@@ -87,9 +86,7 @@ class ConnectionManager {
   private:
     std::string m_server_hostname;
     std::string m_server_port;
-    std::unique_ptr<ServerHandler>
-        m_server_handler; // Added missing handler member
-    // Handler for processing server responses
+    std::unique_ptr<ServerHandler> m_server_handler;
     bool m_non_blocking_mode;
     int32_t m_server_socket{-1};
     std::atomic<bool> m_connected{false};

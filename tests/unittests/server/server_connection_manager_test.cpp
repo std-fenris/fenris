@@ -1,3 +1,5 @@
+#include "common/request.hpp"
+#include "common/response.hpp"
 #include "fenris.pb.h"
 #include "server/connection_manager.hpp"
 #include "server/server.hpp"
@@ -12,25 +14,14 @@
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
-#include <vector> // Include vector
+#include <vector>
 
-// Helper function to serialize Request
-std::vector<uint8_t> serialize_request(const fenris::Request &request)
-{
-    std::string serialized_data;
-    request.SerializeToString(&serialized_data);
-    return std::vector<uint8_t>(serialized_data.begin(), serialized_data.end());
-}
+namespace fenris {
+namespace server {
+namespace tests {
 
-// Helper function to deserialize Response
-fenris::Response deserialize_response(const std::vector<uint8_t> &data)
-{
-    fenris::Response response;
-    response.ParseFromArray(data.data(), data.size());
-    return response;
-}
+using namespace fenris::common;
 
-// Helper function to send size-prefixed data
 bool send_prefixed_data(int sock, const std::vector<uint8_t> &data)
 {
     uint32_t size = htonl(static_cast<uint32_t>(data.size()));
@@ -47,7 +38,6 @@ bool send_prefixed_data(int sock, const std::vector<uint8_t> &data)
     return true;
 }
 
-// Helper function to receive size-prefixed data
 bool receive_prefixed_data(int sock, std::vector<uint8_t> &data)
 {
     uint32_t size_network;
@@ -59,7 +49,7 @@ bool receive_prefixed_data(int sock, std::vector<uint8_t> &data)
     }
 
     uint32_t size = ntohl(size_network);
-    // Validate size to prevent unreasonable allocations
+
     // Using 100MB as a reasonable upper limit for test data
     constexpr uint32_t MAX_REASONABLE_SIZE = 100 * 1024 * 1024;
     if (size == 0 || size > MAX_REASONABLE_SIZE) {
@@ -89,16 +79,12 @@ bool receive_prefixed_data(int sock, std::vector<uint8_t> &data)
                 std::cerr << "Error receiving data: " << strerror(errno)
                           << std::endl;
             }
-            return false; // Error or connection closed
+            return false;
         }
         total_received += bytes_received;
     }
     return true;
 }
-
-namespace fenris {
-namespace server {
-namespace tests{
 
 // Mock implementation of ClientHandler for testing
 class MockClientHandler : public ClientHandler {
@@ -110,18 +96,15 @@ class MockClientHandler : public ClientHandler {
     {
     }
 
-    // Updated handle_request signature
     std::pair<fenris::Response, bool>
     handle_request(uint32_t client_socket,
                    const fenris::Request &request) override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_handled_client_sockets.push_back(client_socket);
-        m_received_requests.push_back(
-            request); // Store the received protobuf request
+        m_received_requests.push_back(request);
         m_request_count++;
 
-        // Create a simple default response
         fenris::Response response;
         response.set_success(true);
         switch (request.command()) {
@@ -160,7 +143,7 @@ class MockClientHandler : public ClientHandler {
         case fenris::RequestType::TERMINATE:
             response.set_type(fenris::ResponseType::TERMINATED);
             response.set_data("TERMINATE");
-            m_keep_connection = false; // Set to false to close connection
+            m_keep_connection = false;
             break;
         default:
             response.set_success(false);
@@ -177,14 +160,11 @@ class MockClientHandler : public ClientHandler {
         return m_handled_client_sockets;
     }
 
-    std::vector<fenris::Request>
-    get_received_requests() // Return vector of protobuf Requests
+    std::vector<fenris::Request> get_received_requests()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_received_requests;
     }
-
-    // Removed get_received_data as we now store Request objects
 
     int get_request_count()
     {
@@ -193,16 +173,14 @@ class MockClientHandler : public ClientHandler {
     }
 
   private:
-    bool m_keep_connection; // Renamed from m_return_value for clarity
+    bool m_keep_connection;
     int m_max_requests;
     int m_request_count;
     std::mutex m_mutex;
     std::vector<uint32_t> m_handled_client_sockets;
-    std::vector<fenris::Request> m_received_requests; // Store protobuf Requests
-    // Removed m_received_data
+    std::vector<fenris::Request> m_received_requests;
 };
 
-// Helper function to create a client socket and connect to server
 int create_and_connect_client_socket(const char *server_ip, int server_port)
 {
     int client_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -227,41 +205,32 @@ int create_and_connect_client_socket(const char *server_ip, int server_port)
     return client_socket;
 }
 
-// Test fixture for ConnectionManager
 class ServerConnectionManagerTest : public ::testing::Test {
   protected:
     void SetUp() override
     {
-        // Use a high port number that's likely to be available
-        m_port = 12345 + (rand() % 1000); // Random high port to avoid conflicts
-        m_port_str = std::to_string(m_port);
-        // Keep connection open by default in mock handler for most tests
-        auto handler_ptr =
-            std::make_unique<MockClientHandler>(true,
-                                                10); // Allow multiple requests
-        // Store the raw pointer before moving the unique_ptr
-        m_mock_handler_ptr = handler_ptr.get();
 
-        // Create connection manager
+        m_port = 12345 + (rand() % 1000);
+        m_port_str = std::to_string(m_port);
+
+        auto handler_ptr = std::make_unique<MockClientHandler>(true, 10);
+        m_mock_handler_ptr = handler_ptr.get();
         m_connection_manager =
             std::make_unique<ConnectionManager>("127.0.0.1", m_port_str);
-        // Use std::move to transfer ownership of the unique_ptr
-        m_connection_manager->set_client_handler(std::move(handler_ptr));
 
-        // Enable non-blocking mode for testing to avoid hanging
+        m_connection_manager->set_client_handler(std::move(handler_ptr));
         m_connection_manager->set_non_blocking_mode(false);
     }
 
     void TearDown() override
     {
-        // Ensure proper server shutdown regardless of test result
+
         if (m_connection_manager) {
             m_connection_manager->stop();
-            // Allow time for the server to fully shutdown
+
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
 
-        // Close any remaining client sockets
         for (int sock : m_client_sockets) {
             if (sock >= 0) {
                 close(sock);
@@ -279,7 +248,6 @@ class ServerConnectionManagerTest : public ::testing::Test {
         return client_sock;
     }
 
-    // Helper method to safely stop the server with verification
     void safe_stop_server()
     {
         if (m_connection_manager) {
@@ -297,154 +265,139 @@ class ServerConnectionManagerTest : public ::testing::Test {
                 inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
 
                 int result = connect(test_socket,
-                                     reinterpret_cast<sockaddr*>(&server_addr),
+                                     reinterpret_cast<sockaddr *>(&server_addr),
                                      sizeof(server_addr));
 
                 if (result < 0 && errno == EINPROGRESS) {
                     for (int i = 0; i < 5; i++) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        std::this_thread::sleep_for(
+                            std::chrono::milliseconds(50));
 
                         int err = 0;
                         socklen_t len = sizeof(err);
-                        getsockopt(test_socket, SOL_SOCKET, SO_ERROR, &err, &len);
+                        getsockopt(test_socket,
+                                   SOL_SOCKET,
+                                   SO_ERROR,
+                                   &err,
+                                   &len);
 
                         if (!err) {
-                            FAIL() << "Connection succeeded; server may not be fully stopped.";
+                            FAIL() << "Connection succeeded; server may not be "
+                                      "fully stopped.";
                             break;
                         } else if (err == ECONNREFUSED || err == ETIMEDOUT) {
-                            // Server is properly shut down
+
                             break;
                         }
                     }
                 } else if (result == 0) {
-                    // Connection succeeded immediately
-                    FAIL() << "Connection succeeded immediately; server may not be fully stopped.";
+                    FAIL() << "Connection succeeded immediately; server may "
+                              "not be fully stopped.";
                 }
-
                 close(test_socket);
             }
         }
     }
 
     std::unique_ptr<ConnectionManager> m_connection_manager;
-    // Store a raw pointer to the mock handler for test verification
+
     MockClientHandler *m_mock_handler_ptr = nullptr;
     int m_port;
     std::string m_port_str;
     std::vector<int> m_client_sockets;
 };
 
-// Test starting and stopping the connection manager
 TEST_F(ServerConnectionManagerTest, StartAndStop)
 {
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 0);
 
-    // Start the connection manager
     m_connection_manager->start();
 
-    // Give it time to fully start
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Stop the connection manager using the safe method
     safe_stop_server();
 
-    // Check that no clients are connected
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 0);
 }
 
-// Test accepting a client connection
 TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
 {
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Connect client (includes magic number exchange)
     int client_sock = connect_test_client();
     ASSERT_GE(client_sock, 0);
 
-    // Wait for server to register connection
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 1);
 
-    // Create a PING request protobuf
     fenris::Request ping_request;
     ping_request.set_command(fenris::RequestType::PING);
 
-    // Serialize and send the request with size prefix
     std::vector<uint8_t> serialized_request = serialize_request(ping_request);
     ASSERT_TRUE(send_prefixed_data(client_sock, serialized_request));
-    // Wait for server to process and respond
+
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    // Receive the response
     std::vector<uint8_t> received_data;
     ASSERT_TRUE(receive_prefixed_data(client_sock, received_data));
-    // Deserialize and verify the response
+
     fenris::Response response = deserialize_response(received_data);
     ASSERT_TRUE(response.success());
-    ASSERT_EQ(response.data(), "PING"); // Mock handler echoes command name
+    ASSERT_EQ(response.data(), "PING");
 
-    // Verify handler received the request
-    // Use the raw pointer m_mock_handler_ptr
     auto received_requests = m_mock_handler_ptr->get_received_requests();
     ASSERT_EQ(received_requests.size(), 1);
     ASSERT_TRUE(
         google::protobuf::util::MessageDifferencer::Equals(received_requests[0],
                                                            ping_request));
-    // Send terminate
+
     fenris::Request terminate_request;
     terminate_request.set_command(fenris::RequestType::TERMINATE);
     std::vector<uint8_t> serialized_terminate_request =
         serialize_request(terminate_request);
     ASSERT_TRUE(send_prefixed_data(client_sock, serialized_terminate_request));
-    // Wait for server to process and respond
+
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    // Receive the response
+
     std::vector<uint8_t> terminate_received_data;
     ASSERT_TRUE(receive_prefixed_data(client_sock, terminate_received_data));
-    // Deserialize and verify the response
+
     fenris::Response terminate_response =
         deserialize_response(terminate_received_data);
     ASSERT_TRUE(terminate_response.success());
     ASSERT_EQ(terminate_response.data(), "TERMINATE");
 
     // Close client socket (will be handled by TearDown)
-    // safe_stop_server(); // Let TearDown handle stop
 }
 
-// Test multiple client connections
 TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
 {
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Lambda to perform a client request/response exchange
     auto perform_client_exchange = [&](int sock, fenris::RequestType cmd_type) {
-        // Create request
         fenris::Request request;
         request.set_command(cmd_type);
         if (cmd_type == fenris::RequestType::READ_FILE) {
-            request.set_filename("test.txt"); // Add filename for READ_FILE
+            request.set_filename("test.txt");
         }
 
-        // Serialize and send
         std::vector<uint8_t> serialized_request = serialize_request(request);
         ASSERT_TRUE(send_prefixed_data(sock, serialized_request));
 
-        // Receive response
         std::vector<uint8_t> received_data;
         ASSERT_TRUE(receive_prefixed_data(sock, received_data));
 
-        // Deserialize and verify
         fenris::Response response = deserialize_response(received_data);
         ASSERT_TRUE(response.success());
-        // Check if message matches the command name echoed by mock handler
+
         ASSERT_EQ(response.data(),
                   request.command() == fenris::RequestType::READ_FILE
                       ? "READ_FILE"
                       : (request.command() == fenris::RequestType::LIST_DIR
                              ? "LIST_DIR"
-                             : "PING")); // Adjust based on command type
+                             : "PING"));
     };
 
     auto terminate_client = [&](int sock) {
@@ -453,13 +406,12 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
         std::vector<uint8_t> serialized_terminate_request =
             serialize_request(terminate_request);
         ASSERT_TRUE(send_prefixed_data(sock, serialized_terminate_request));
-        // Wait for server to process and respond
+
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        // Receive the response
+
         std::vector<uint8_t> terminate_received_data;
         ASSERT_TRUE(receive_prefixed_data(sock, terminate_received_data));
 
-        // Deserialize and verify the response
         fenris::Response terminate_response =
             deserialize_response(terminate_received_data);
         ASSERT_TRUE(terminate_response.success());
@@ -478,37 +430,25 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 3);
 
     perform_client_exchange(client1, fenris::RequestType::PING);
-    perform_client_exchange(
-        client2,
-        fenris::RequestType::READ_FILE); // Use different command
-    perform_client_exchange(
-        client3,
-        fenris::RequestType::LIST_DIR); // Use another command
+    perform_client_exchange(client2, fenris::RequestType::READ_FILE);
+    perform_client_exchange(client3, fenris::RequestType::LIST_DIR);
 
-    // Wait for server processing
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Use the raw pointer m_mock_handler_ptr
     auto handled_sockets = m_mock_handler_ptr->get_handled_client_ids();
-    ASSERT_EQ(handled_sockets.size(),
-              3); // Check if handler processed 3 requests
+    ASSERT_EQ(handled_sockets.size(), 3);
 
-    // Use the raw pointer m_mock_handler_ptr
     auto received_requests = m_mock_handler_ptr->get_received_requests();
     ASSERT_EQ(received_requests.size(), 3);
     ASSERT_EQ(received_requests[0].command(), fenris::RequestType::PING);
     ASSERT_EQ(received_requests[1].command(), fenris::RequestType::READ_FILE);
     ASSERT_EQ(received_requests[2].command(), fenris::RequestType::LIST_DIR);
 
-    // Terminate all clients
     terminate_client(client1);
     terminate_client(client2);
     terminate_client(client3);
-
-    // safe_stop_server(); // Let TearDown handle stop
 }
 
-// Test client disconnection handling
 TEST_F(ServerConnectionManagerTest, ClientDisconnection)
 {
     m_connection_manager->start();
@@ -520,26 +460,22 @@ TEST_F(ServerConnectionManagerTest, ClientDisconnection)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 1);
 
-    // Send a request to ensure connection is fully handled before closing
     fenris::Request ping_request;
     ping_request.set_command(fenris::RequestType::PING);
 
     std::vector<uint8_t> serialized_request = serialize_request(ping_request);
     ASSERT_TRUE(send_prefixed_data(client_sock, serialized_request));
-    std::this_thread::sleep_for(
-        std::chrono::milliseconds(100)); // Give time to process
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Close the client socket abruptly
     close(client_sock);
-    // Remove from list so TearDown doesn't try to close again
+
     m_client_sockets.erase(std::remove(m_client_sockets.begin(),
                                        m_client_sockets.end(),
                                        client_sock),
                            m_client_sockets.end());
 
-    // Wait for server to detect disconnection
     bool disconnected = false;
-    for (int i = 0; i < 20; i++) { // Increased timeout/checks
+    for (int i = 0; i < 20; i++) {
         if (m_connection_manager->get_active_client_count() == 0) {
             disconnected = true;
             break;
@@ -548,11 +484,8 @@ TEST_F(ServerConnectionManagerTest, ClientDisconnection)
     }
     ASSERT_TRUE(disconnected) << "Server did not detect client disconnection";
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 0);
-
-    // safe_stop_server(); // Let TearDown handle stop
 }
 
-// Test handling different request types (simulated)
 TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
 {
     m_connection_manager->start();
@@ -561,10 +494,8 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     int client_sock = connect_test_client();
     ASSERT_GE(client_sock, 0);
 
-    // Wait for connection
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Create and send a READ_FILE request
     fenris::Request read_request;
     read_request.set_command(fenris::RequestType::READ_FILE);
 
@@ -573,51 +504,39 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     std::vector<uint8_t> serialized_read_req = serialize_request(read_request);
     ASSERT_TRUE(send_prefixed_data(client_sock, serialized_read_req));
 
-    // Receive and verify response (mock just echoes command name)
     std::vector<uint8_t> read_response_data;
     ASSERT_TRUE(receive_prefixed_data(client_sock, read_response_data));
     fenris::Response read_response = deserialize_response(read_response_data);
     ASSERT_TRUE(read_response.success());
     ASSERT_EQ(read_response.data(), "READ_FILE");
 
-    // Create and send a WRITE_FILE request
     fenris::Request write_request;
     write_request.set_command(fenris::RequestType::WRITE_FILE);
 
     write_request.set_filename("output.log");
-    // write_request.set_data("Log data here"); // Assuming data is part of
-    // request proto
 
     std::vector<uint8_t> serialized_write_req =
         serialize_request(write_request);
     ASSERT_TRUE(send_prefixed_data(client_sock, serialized_write_req));
 
-    // Receive and verify response
     std::vector<uint8_t> write_response_data;
     ASSERT_TRUE(receive_prefixed_data(client_sock, write_response_data));
     fenris::Response write_response = deserialize_response(write_response_data);
     ASSERT_TRUE(write_response.success());
     ASSERT_EQ(write_response.data(), "WRITE_FILE");
 
-    // Give some time for server to process
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    // Check that handler received the expected requests
-    // Use the raw pointer m_mock_handler_ptr
     auto received_requests = m_mock_handler_ptr->get_received_requests();
     ASSERT_EQ(received_requests.size(), 2);
 
-    // Verify first request (READ_FILE)
     ASSERT_EQ(received_requests[0].command(), fenris::RequestType::READ_FILE);
     ASSERT_EQ(received_requests[0].filename(), "example.dat");
 
-    // Verify second request (WRITE_FILE)
     ASSERT_EQ(received_requests[1].command(), fenris::RequestType::WRITE_FILE);
 
     ASSERT_EQ(received_requests[1].filename(), "output.log");
-    // ASSERT_EQ(received_requests[1].data(), "Log data here");
 
-    // Send terminate request
     fenris::Request terminate_request;
     terminate_request.set_command(fenris::RequestType::TERMINATE);
     std::vector<uint8_t> serialized_terminate_request =
@@ -625,15 +544,13 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     ASSERT_TRUE(send_prefixed_data(client_sock, serialized_terminate_request));
     std::cout << "Sent terminate request: " << terminate_request.DebugString()
               << std::endl;
-    // Wait for server to process and respond
+
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    // Receive the response
+
     std::vector<uint8_t> terminate_received_data;
     ASSERT_TRUE(receive_prefixed_data(client_sock, terminate_received_data));
     std::cout << "Received terminate data size: "
               << terminate_received_data.size() << std::endl;
-
-    // safe_stop_server(); // Let TearDown handle stop
 }
 
 } // namespace tests

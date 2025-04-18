@@ -54,14 +54,13 @@ void ConnectionManager::start()
         return;
     }
 
-    // Setup socket
     struct addrinfo hints, *servinfo, *p;
     int rv;
 
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;       // Use IPv4 or IPv6
-    hints.ai_socktype = SOCK_STREAM; // TCP
-    hints.ai_flags = AI_PASSIVE;     // Use my IP
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
 
     if ((rv = getaddrinfo(m_hostname.c_str(),
                           m_port.c_str(),
@@ -71,7 +70,6 @@ void ConnectionManager::start()
         return;
     }
 
-    // Loop through all the results and bind to the first we can
     for (p = servinfo; p != nullptr; p = p->ai_next) {
         if ((m_server_socket =
                  socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
@@ -80,7 +78,6 @@ void ConnectionManager::start()
             continue;
         }
 
-        // Avoid "Address already in use" error
         int yes = 1;
         if (setsockopt(m_server_socket,
                        SOL_SOCKET,
@@ -141,7 +138,7 @@ void ConnectionManager::stop()
     m_running = false;
 
     if (m_server_socket != -1) {
-        // Create a client socket to connect to our server
+
         int wake_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (wake_socket >= 0) {
             struct sockaddr_in server_addr;
@@ -170,18 +167,15 @@ void ConnectionManager::stop()
         }
     }
 
-    // Now close the server socket
     if (m_server_socket != -1) {
         close(m_server_socket);
         m_server_socket = -1;
     }
 
-    // Wait for listen thread to exit
     if (m_listen_thread.joinable()) {
         m_listen_thread.join();
     }
 
-    // Close all client connections
     std::lock_guard<std::mutex> lock(m_client_mutex);
 
     for (auto &pair : m_client_sockets) {
@@ -189,7 +183,6 @@ void ConnectionManager::stop()
     }
     m_client_sockets.clear();
 
-    // Wait for all client threads to complete
     for (auto &thread : m_client_threads) {
         if (thread.joinable()) {
             thread.join();
@@ -218,18 +211,18 @@ void ConnectionManager::listen_for_connection()
     socklen_t sin_size = sizeof(client_addr);
 
     while (m_running) {
-        // Accept connection - will be non-blocking if in non-blocking mode
+
         int client_fd =
             accept(m_server_socket, (struct sockaddr *)&client_addr, &sin_size);
 
         if (!m_running) {
-            break; // Server is shutting down
+            break;
         }
 
         if (client_fd == -1) {
             if (m_non_blocking_mode &&
                 (errno == EAGAIN || errno == EWOULDBLOCK)) {
-                // No connection available, sleep briefly and continue
+
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 continue;
             }
@@ -247,7 +240,6 @@ void ConnectionManager::listen_for_connection()
 
         std::cout << "server: got connection from " << client_ip << std::endl;
 
-        // Create a new client ID and add to list
         uint32_t client_id = generate_client_id();
 
         {
@@ -255,7 +247,6 @@ void ConnectionManager::listen_for_connection()
             m_client_sockets[client_id] = client_fd;
         }
 
-        // Create a thread to handle this client
         m_client_threads.emplace_back(&ConnectionManager::handle_client,
                                       this,
                                       client_fd,
@@ -266,7 +257,7 @@ void ConnectionManager::listen_for_connection()
 void ConnectionManager::handle_client(uint32_t client_socket,
                                       uint32_t client_id)
 {
-    // Create client info entry
+
     ClientInfo client_info;
     client_info.client_id = client_id;
     client_info.socket = client_socket;
@@ -281,14 +272,13 @@ void ConnectionManager::handle_client(uint32_t client_socket,
 
     // Process client requests
     while (m_running && keep_connection) {
-        // Read the message size (first 4 bytes)
+
         uint32_t message_size = 0;
         if (!receive_size(client_socket, message_size, m_non_blocking_mode)) {
             std::cerr << "Failed to read message size from client" << std::endl;
             break;
         }
 
-        // Read the serialized request data
         std::vector<uint8_t> request_data(message_size);
         if (!receive_data(client_socket,
                           request_data,
@@ -298,7 +288,6 @@ void ConnectionManager::handle_client(uint32_t client_socket,
             break;
         }
 
-        // Deserialize the request using Protocol Buffers
         Request request;
         try {
             request = deserialize_request(request_data);
@@ -308,19 +297,16 @@ void ConnectionManager::handle_client(uint32_t client_socket,
             break;
         }
 
-        // handle client
         auto response =
             m_client_handler->handle_request(client_socket, request);
         keep_connection = response.second;
 
-        // Serialize the response
         std::vector<uint8_t> response_data = serialize_response(response.first);
         if (response_data.empty()) {
             std::cerr << "Failed to serialize response" << std::endl;
             break;
         }
 
-        // Send the response size (4 bytes)
         uint32_t response_size = static_cast<uint32_t>(response_data.size());
 
         if (!send_size(client_socket, response_size, m_non_blocking_mode)) {
@@ -328,7 +314,6 @@ void ConnectionManager::handle_client(uint32_t client_socket,
             break;
         }
 
-        // Send the serialized response data
         if (!send_data(client_socket,
                        response_data,
                        static_cast<uint32_t>(response_data.size()),
