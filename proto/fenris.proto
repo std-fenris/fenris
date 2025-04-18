@@ -3,16 +3,17 @@ syntax = "proto3";
 package fenris;
 
 enum RequestType {
-  CREATE_FILE = 0;
-  READ_FILE = 1;
-  WRITE_FILE = 2;
-  APPEND_FILE = 3;
-  DELETE_FILE = 4;
-  INFO_FILE = 5;
-  CREATE_DIR = 6;
-  LIST_DIR = 7;
-  DELETE_DIR = 8;
-  TERMINATE = 9;
+  PING = 0;
+  CREATE_FILE = 1;
+  READ_FILE = 2;
+  WRITE_FILE = 3;
+  APPEND_FILE = 4;
+  DELETE_FILE = 5;
+  INFO_FILE = 6;
+  CREATE_DIR = 7;
+  LIST_DIR = 8;
+  DELETE_DIR = 9;
+  TERMINATE = 10;
 }
 
 message Request {
@@ -23,11 +24,13 @@ message Request {
 }
 
 enum ResponseType {
-  FILE_INFO = 0;
-  FILE_CONTENT = 1;
-  DIR_LISTING = 2;
-  SUCCESS = 3;
-  ERROR = 4;
+  PONG = 0;
+  FILE_INFO = 1;
+  FILE_CONTENT = 2;
+  DIR_LISTING = 3;
+  SUCCESS = 4;
+  ERROR = 5;
+  TERMINATED = 6;
 }
 
 message Response {
