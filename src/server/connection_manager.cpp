@@ -6,8 +6,6 @@
 #include "server/request_manager.hpp"
 #include "server/server.hpp"
 
-#include <google/protobuf/stubs/common.h>
-
 #include <algorithm>
 #include <arpa/inet.h>
 #include <cstring>

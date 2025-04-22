@@ -8,8 +8,6 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <fcntl.h>
-#include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <iostream>
 #include <netdb.h>
 #include <sys/socket.h>
