@@ -1,4 +1,4 @@
-#include "common/crypto.hpp"
+#include "common/crypto_manager.hpp"
 
 #include <cryptopp/aes.h>
 #include <cryptopp/eccrypto.h>
@@ -15,13 +15,14 @@
 
 namespace fenris {
 namespace common {
+namespace crypto {
 
 using namespace CryptoPP;
 
 std::pair<std::vector<uint8_t>, EncryptionError>
-encrypt_data_aes_gcm(const std::vector<uint8_t> &plaintext,
-                     const std::vector<uint8_t> &key,
-                     const std::vector<uint8_t> &iv)
+CryptoManager::encrypt_data(const std::vector<uint8_t> &plaintext,
+                            const std::vector<uint8_t> &key,
+                            const std::vector<uint8_t> &iv)
 {
     if (plaintext.empty()) {
         return {std::vector<uint8_t>(), EncryptionError::SUCCESS};
@@ -60,9 +61,9 @@ encrypt_data_aes_gcm(const std::vector<uint8_t> &plaintext,
 }
 
 std::pair<std::vector<uint8_t>, EncryptionError>
-decrypt_data_aes_gcm(const std::vector<uint8_t> &ciphertext,
-                     const std::vector<uint8_t> &key,
-                     const std::vector<uint8_t> &iv)
+CryptoManager::decrypt_data(const std::vector<uint8_t> &ciphertext,
+                            const std::vector<uint8_t> &key,
+                            const std::vector<uint8_t> &iv)
 {
     if (ciphertext.empty()) {
         return {std::vector<uint8_t>(), EncryptionError::SUCCESS};
@@ -103,11 +104,8 @@ decrypt_data_aes_gcm(const std::vector<uint8_t> &ciphertext,
     }
 }
 
-/**
- * Generates an ECDH key pair using the NIST P-256 (secp256r1) curve.
- */
 std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, ECDHError>
-generate_ecdh_keypair()
+CryptoManager::generate_ecdh_keypair()
 {
     try {
         // Use the NIST P-256 curve
@@ -135,12 +133,10 @@ generate_ecdh_keypair()
     }
 }
 
-/**
- * Computes a shared secret using our private key and the peer's public key.
- */
 std::pair<std::vector<uint8_t>, ECDHError>
-compute_ecdh_shared_secret(const std::vector<uint8_t> &private_key,
-                           const std::vector<uint8_t> &peer_public_key)
+CryptoManager::compute_ecdh_shared_secret(
+    const std::vector<uint8_t> &private_key,
+    const std::vector<uint8_t> &peer_public_key)
 {
     try {
         // Use the NIST P-256 curve
@@ -169,13 +165,11 @@ compute_ecdh_shared_secret(const std::vector<uint8_t> &private_key,
     }
 }
 
-/**
- * Derives an AES key from a shared secret using HKDF.
- */
 std::pair<std::vector<uint8_t>, ECDHError>
-derive_key_from_shared_secret(const std::vector<uint8_t> &shared_secret,
-                              size_t key_size,
-                              const std::vector<uint8_t> &context)
+CryptoManager::derive_key_from_shared_secret(
+    const std::vector<uint8_t> &shared_secret,
+    size_t key_size,
+    const std::vector<uint8_t> &context)
 {
     try {
         if (key_size != 16 && key_size != 24 && key_size != 32) {
@@ -217,5 +211,6 @@ derive_key_from_shared_secret(const std::vector<uint8_t> &shared_secret,
     }
 }
 
+} // namespace crypto
 } // namespace common
 } // namespace fenris

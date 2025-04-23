@@ -6,7 +6,7 @@ verbose_message("Setting up common library...")
 set(
     COMMON_SOURCES
     compression.cpp
-    crypto.cpp
+    crypto_manager.cpp
     file_operations.cpp
     logging.cpp
     request.cpp
