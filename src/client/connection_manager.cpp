@@ -31,6 +31,7 @@ ConnectionManager::ConnectionManager(const std::string &hostname,
       m_server_socket(-1), m_connected(false)
 {
     m_logger = get_logger(logger_name);
+    m_crypto_manager = std::make_unique<common::crypto::CryptoManager>();
 }
 
 ConnectionManager::~ConnectionManager()
@@ -103,9 +104,84 @@ bool ConnectionManager::connect()
                    m_server_hostname,
                    m_server_port);
 
-    // TODO: Key exchange step - implement secure key exchange protocol here
-    // This should establish shared encryption keys between client and server
+    if (!perform_key_exchange()) {
+        m_logger->error("Key exchange with server failed");
+        disconnect();
+        return false;
+    }
 
+    return true;
+}
+
+bool ConnectionManager::perform_key_exchange()
+{
+    bool rc;
+
+    auto [private_key, public_key, keygen_error] =
+        m_crypto_manager->generate_ecdh_keypair();
+    if (keygen_error != crypto::ECDHError::SUCCESS) {
+        m_logger->error("Failed to generate ECDH key pair");
+        return false;
+    }
+
+    // Send public key to server
+    rc = send_size(m_server_socket,
+                   static_cast<uint32_t>(public_key.size()),
+                   m_non_blocking_mode);
+    if (!rc) {
+        m_logger->error("Failed to send public key size");
+        return false;
+    }
+
+    rc = send_data(m_server_socket,
+                   public_key,
+                   static_cast<uint32_t>(public_key.size()),
+                   m_non_blocking_mode);
+    if (!rc) {
+        m_logger->error("Failed to send public key");
+        return false;
+    }
+
+    // Receive server's public key
+    uint32_t server_public_key_size = 0;
+
+    rc = receive_size(m_server_socket,
+                      server_public_key_size,
+                      m_non_blocking_mode);
+    if (!rc) {
+        m_logger->error("Failed to receive server public key size");
+        return false;
+    }
+    std::vector<uint8_t> server_public_key(server_public_key_size);
+
+    rc = receive_data(m_server_socket,
+                      server_public_key,
+                      server_public_key_size,
+                      m_non_blocking_mode);
+    if (!rc) {
+        m_logger->error("Failed to receive server public key");
+        return false;
+    }
+
+    // Compute shared secret
+    auto [shared_secret, ss_error] =
+        m_crypto_manager->compute_ecdh_shared_secret(private_key,
+                                                     server_public_key);
+    if (ss_error != crypto::ECDHError::SUCCESS) {
+        m_logger->error("Failed to compute ECDH shared secret");
+        return false;
+    }
+
+    // Derive encryption key from shared secret
+    auto [derived_key, key_derive_error] =
+        m_crypto_manager->derive_key_from_shared_secret(shared_secret, 16);
+    if (key_derive_error != crypto::ECDHError::SUCCESS) {
+        m_logger->error("Failed to derive encryption key");
+        return false;
+    }
+
+    // Set the derived key in the crypto manager
+    m_server_info.encryption_key = derived_key;
     return true;
 }
 

@@ -1,5 +1,6 @@
 #include "client/client.hpp"
 #include "client/connection_manager.hpp"
+#include "common/crypto_manager.hpp"
 #include "common/network_utils.hpp"
 #include "common/request.hpp"
 #include "common/response.hpp"
@@ -211,6 +212,14 @@ class MockServer {
 
     void handle_client(int sock)
     {
+        // First handle key exchange
+        if (!perform_key_exchange(sock)) {
+            std::cerr << "MockServer: Key exchange failed" << std::endl;
+            return;
+        }
+
+        std::cout << "MockServer: Key exchange successful" << std::endl;
+
         while (m_running) {
             std::vector<uint8_t> request_data;
             if (!receive_prefixed_data(sock, request_data)) {
@@ -264,6 +273,54 @@ class MockServer {
         }
     }
 
+    // Perform key exchange with the client
+    bool perform_key_exchange(int sock)
+    {
+        common::crypto::CryptoManager crypto_manager;
+
+        // Generate ECDH keypair for the server
+        auto [private_key, public_key, keygen_error] =
+            crypto_manager.generate_ecdh_keypair();
+        if (keygen_error != common::crypto::ECDHError::SUCCESS) {
+            std::cerr << "Failed to generate server ECDH keypair" << std::endl;
+            return false;
+        }
+
+        // Receive the client's public key size
+        std::vector<uint8_t> client_public_key;
+        if (!receive_prefixed_data(sock, client_public_key)) {
+            std::cerr << "Failed to receive client public key" << std::endl;
+            return false;
+        }
+
+        // Send our public key to the client
+        if (!send_prefixed_data(sock, public_key)) {
+            std::cerr << "Failed to send server public key" << std::endl;
+            return false;
+        }
+
+        // Compute the shared secret
+        auto [shared_secret, ss_error] =
+            crypto_manager.compute_ecdh_shared_secret(private_key,
+                                                      client_public_key);
+        if (ss_error != common::crypto::ECDHError::SUCCESS) {
+            std::cerr << "Failed to compute shared secret" << std::endl;
+            return false;
+        }
+
+        // Derive the encryption key
+        auto [derived_key, key_derive_error] =
+            crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
+        if (key_derive_error != common::crypto::ECDHError::SUCCESS) {
+            std::cerr << "Failed to derive key from shared secret" << std::endl;
+            return false;
+        }
+
+        // Store the derived key
+        m_encryption_key = derived_key;
+        return true;
+    }
+
     int m_port;
     int m_listen_socket;
     int m_client_socket;
@@ -276,6 +333,9 @@ class MockServer {
 
     fenris::Response m_next_response;
     std::mutex m_response_mutex;
+
+    // Store encryption key derived from key exchange
+    std::vector<uint8_t> m_encryption_key;
 };
 
 class ClientConnectionManagerTest : public ::testing::Test {

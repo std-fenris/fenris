@@ -90,6 +90,12 @@ class ConnectionManager {
     bool is_connected() const;
 
   private:
+    /**
+     * @brief Perform key exchange with server and save the encryption key
+     * @returns true if key exchange was successful, false otherwise
+     */
+    bool perform_key_exchange();
+
     std::string m_server_hostname;
     std::string m_server_port;
     std::unique_ptr<ServerHandler> m_server_handler;
@@ -98,6 +104,7 @@ class ConnectionManager {
     std::atomic<bool> m_connected{false};
     std::mutex m_socket_mutex;
     ServerInfo m_server_info;
+    std::unique_ptr<common::crypto::ICryptoManager> m_crypto_manager;
     common::Logger m_logger;
 };
 

@@ -99,6 +99,15 @@ class ConnectionManager {
      */
     void remove_client(uint32_t client_id);
 
+    /**
+     * @brief Perform key exchange with client and save the encryption key
+     * @param client_socket Socket descriptor for the client connection
+     * @param encryption_key Reference to the encryption key to be set
+     * @return true if key exchange was successful, false otherwise
+     */
+    bool perform_key_exchange(uint32_t client_socket,
+                              std::vector<uint8_t> &encryption_key);
+
     std::string m_hostname;
     std::string m_port;
     std::unique_ptr<ClientHandler> m_client_handler;
@@ -106,6 +115,8 @@ class ConnectionManager {
     std::atomic<bool> m_running{false};
     std::thread m_listen_thread;
     bool m_non_blocking_mode;
+    std::unique_ptr<common::crypto::ICryptoManager> m_crypto_manager;
+    common::Logger m_logger;
 
     // Client management
     std::unordered_map<uint32_t, uint32_t>
@@ -113,7 +124,6 @@ class ConnectionManager {
     std::vector<std::thread> m_client_threads;
     mutable std::mutex m_client_mutex;
     std::atomic<uint32_t> m_next_client_id{1};
-    common::Logger m_logger;
 };
 
 /**
