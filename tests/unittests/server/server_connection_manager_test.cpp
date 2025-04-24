@@ -24,6 +24,7 @@ namespace tests {
 
 using namespace fenris::common;
 using namespace fenris::common::network;
+using namespace google::protobuf::util;
 
 // Mock implementation of ClientHandler for testing
 class MockClientHandler : public ClientHandler {
@@ -146,11 +147,11 @@ int create_and_connect_client_socket(const char *server_ip, int server_port)
 
 bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
 {
-    common::crypto::CryptoManager crypto_manager;
+    crypto::CryptoManager crypto_manager;
 
     auto [private_key, public_key, keygen_error] =
         crypto_manager.generate_ecdh_keypair();
-    if (keygen_error != common::crypto::ECDHError::SUCCESS) {
+    if (keygen_error != crypto::ECDHError::SUCCESS) {
         std::cerr << "Failed to generate client ECDH keypair" << std::endl;
         return false;
     }
@@ -172,14 +173,14 @@ bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
     auto [shared_secret, ss_error] =
         crypto_manager.compute_ecdh_shared_secret(private_key,
                                                   server_public_key);
-    if (ss_error != common::crypto::ECDHError::SUCCESS) {
+    if (ss_error != crypto::ECDHError::SUCCESS) {
         std::cerr << "Failed to compute shared secret" << std::endl;
         return false;
     }
 
     auto [derived_key, key_derive_error] =
         crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
-    if (key_derive_error != common::crypto::ECDHError::SUCCESS) {
+    if (key_derive_error != crypto::ECDHError::SUCCESS) {
         std::cerr << "Failed to derive key from shared secret" << std::endl;
         return false;
     }
@@ -346,9 +347,7 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
 
     auto received_requests = m_mock_handler_ptr->get_received_requests();
     ASSERT_EQ(received_requests.size(), 1);
-    ASSERT_TRUE(
-        google::protobuf::util::MessageDifferencer::Equals(received_requests[0],
-                                                           ping_request));
+    ASSERT_TRUE(MessageDifferencer::Equals(received_requests[0], ping_request));
 
     fenris::Request terminate_request;
     terminate_request.set_command(fenris::RequestType::TERMINATE);

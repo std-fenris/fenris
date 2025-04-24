@@ -269,15 +269,17 @@ bool ConnectionManager::perform_key_exchange(
 
     // Receive client's public key
     std::vector<uint8_t> server_public_key;
-    NetworkError recv_result =
-        receive_prefixed_data(client_socket, server_public_key);
+    NetworkError recv_result = receive_prefixed_data(client_socket,
+                                                     server_public_key,
+                                                     m_non_blocking_mode);
     if (recv_result != NetworkError::SUCCESS) {
         m_logger->error("Failed to receive client public key");
         return false;
     }
 
     // Send public key to client
-    NetworkError send_result = send_prefixed_data(client_socket, public_key);
+    NetworkError send_result =
+        send_prefixed_data(client_socket, public_key, m_non_blocking_mode);
     if (send_result != NetworkError::SUCCESS) {
         m_logger->error("Failed to send public key");
         return false;
@@ -331,8 +333,9 @@ void ConnectionManager::handle_client(uint32_t client_socket,
     while (m_running && keep_connection) {
 
         std::vector<uint8_t> request_data;
-        NetworkError recv_result =
-            receive_prefixed_data(client_socket, request_data);
+        NetworkError recv_result = receive_prefixed_data(client_socket,
+                                                         request_data,
+                                                         m_non_blocking_mode);
         if (recv_result != NetworkError::SUCCESS) {
             m_logger->error("Failed to receive request data from client");
             break;
@@ -356,8 +359,9 @@ void ConnectionManager::handle_client(uint32_t client_socket,
             break;
         }
 
-        NetworkError send_result =
-            send_prefixed_data(client_socket, response_data);
+        NetworkError send_result = send_prefixed_data(client_socket,
+                                                      response_data,
+                                                      m_non_blocking_mode);
         if (send_result != NetworkError::SUCCESS) {
             m_logger->error("Failed to send response data to client");
             break;

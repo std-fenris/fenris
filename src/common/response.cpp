@@ -6,6 +6,8 @@
 namespace fenris {
 namespace common {
 
+using namespace google::protobuf::util;
+
 std::vector<uint8_t> serialize_response(const fenris::Response &response)
 {
     std::string serialized;
@@ -41,13 +43,11 @@ fenris::Response deserialize_response(const std::vector<uint8_t> &data)
 std::string response_to_json(const fenris::Response &response)
 {
     std::string json_output;
-    google::protobuf::util::JsonPrintOptions options;
+    JsonPrintOptions options;
     options.add_whitespace = true;
     options.always_print_primitive_fields = true;
 
-    google::protobuf::util::MessageToJsonString(response,
-                                                &json_output,
-                                                options);
+    MessageToJsonString(response, &json_output, options);
     return json_output;
 }
 
