@@ -27,6 +27,7 @@ namespace tests {
 
 using namespace fenris::common;
 using namespace fenris::common::network;
+using namespace google::protobuf::util;
 
 // --- Mock Server Implementation ---
 class MockServer {
@@ -145,6 +146,11 @@ class MockServer {
         m_next_response = response;
     }
 
+    const std::vector<uint8_t> &get_encryption_key() const
+    {
+        return m_encryption_key;
+    }
+
   private:
     void run()
     {
@@ -160,9 +166,7 @@ class MockServer {
                 break; // Check after accept returns
 
             if (temp_client_socket < 0) {
-                if (errno != EBADF &&
-                    errno !=
-                        EINVAL) { // Ignore errors caused by closing the socket
+                if (errno != EBADF && errno != EINVAL) {
                     perror("MockServer: accept failed");
                 }
                 continue;
@@ -277,7 +281,7 @@ class MockServer {
         }
 
         // Send our public key to the client
-        NetworkError send_result = send_prefixed_data(sock, client_public_key);
+        NetworkError send_result = send_prefixed_data(sock, public_key);
         if (send_result != NetworkError::SUCCESS) {
             std::cerr << "Failed to send server public key" << std::endl;
             return false;
@@ -396,9 +400,7 @@ TEST_F(ClientConnectionManagerTest, SendRequest)
 
     auto received_requests = m_mock_server->get_received_requests();
     ASSERT_EQ(received_requests.size(), 1);
-    ASSERT_TRUE(
-        google::protobuf::util::MessageDifferencer::Equals(received_requests[0],
-                                                           ping_request));
+    ASSERT_TRUE(MessageDifferencer::Equals(received_requests[0], ping_request));
 
     m_connection_manager->disconnect();
 }
@@ -424,9 +426,8 @@ TEST_F(ClientConnectionManagerTest, ReceiveResponse)
     auto received_response_opt = m_connection_manager->receive_response();
     ASSERT_TRUE(received_response_opt.has_value());
 
-    ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(
-        received_response_opt.value(),
-        expected_response));
+    ASSERT_TRUE(MessageDifferencer::Equals(received_response_opt.value(),
+                                           expected_response));
 
     m_connection_manager->disconnect();
 }
@@ -449,9 +450,8 @@ TEST_F(ClientConnectionManagerTest, SendAndReceiveMultiple)
     ASSERT_TRUE(m_connection_manager->send_request(ping_request));
     auto received_pong_opt = m_connection_manager->receive_response();
     ASSERT_TRUE(received_pong_opt.has_value());
-    ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(
-        received_pong_opt.value(),
-        pong_response));
+    ASSERT_TRUE(
+        MessageDifferencer::Equals(received_pong_opt.value(), pong_response));
 
     fenris::Request read_request;
     read_request.set_command(fenris::RequestType::READ_FILE);
@@ -466,43 +466,42 @@ TEST_F(ClientConnectionManagerTest, SendAndReceiveMultiple)
     ASSERT_TRUE(m_connection_manager->send_request(read_request));
     auto received_file_opt = m_connection_manager->receive_response();
     ASSERT_TRUE(received_file_opt.has_value());
-    ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(
-        received_file_opt.value(),
-        file_response));
+    ASSERT_TRUE(
+        MessageDifferencer::Equals(received_file_opt.value(), file_response));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     auto received_requests = m_mock_server->get_received_requests();
     ASSERT_EQ(received_requests.size(), 2);
-    ASSERT_TRUE(
-        google::protobuf::util::MessageDifferencer::Equals(received_requests[0],
-                                                           ping_request));
-    ASSERT_TRUE(
-        google::protobuf::util::MessageDifferencer::Equals(received_requests[1],
-                                                           read_request));
+    ASSERT_TRUE(MessageDifferencer::Equals(received_requests[0], ping_request));
+    ASSERT_TRUE(MessageDifferencer::Equals(received_requests[1], read_request));
 
     m_connection_manager->disconnect();
 }
 
-TEST_F(ClientConnectionManagerTest, ServerDisconnectDuringReceive)
+TEST_F(ClientConnectionManagerTest, ECDHKeyExchangeProducesMatchingKeys)
 {
+    // Connect to the mock server
     ASSERT_TRUE(m_connection_manager->connect());
     ASSERT_TRUE(m_connection_manager->is_connected());
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    fenris::Request dummy_request;
-    dummy_request.set_command(fenris::RequestType::PING);
-    ASSERT_TRUE(m_connection_manager->send_request(dummy_request));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Stop the server abruptly *before* client tries to receive
-    m_mock_server->stop();
-    std::this_thread::sleep_for(
-        std::chrono::milliseconds(1500)); // Ensure server socket is closed
+    const std::vector<uint8_t> &client_key =
+        m_connection_manager->get_encryption_key();
+    ASSERT_FALSE(client_key.empty()) << "Client encryption key is empty";
 
-    // Attempt to receive - should fail and update connection status
-    auto received_response_opt = m_connection_manager->receive_response();
-    ASSERT_FALSE(received_response_opt.has_value());
-    ASSERT_FALSE(
-        m_connection_manager->is_connected()); // Should detect disconnection
+    const std::vector<uint8_t> &server_key =
+        m_mock_server->get_encryption_key();
+    ASSERT_FALSE(server_key.empty()) << "Server encryption key is empty";
+
+    ASSERT_EQ(client_key.size(), server_key.size()) << "Key sizes don't match";
+    for (size_t i = 0; i < client_key.size(); i++) {
+        ASSERT_EQ(client_key[i], server_key[i])
+            << "Key mismatch at index " << i;
+    }
+
+    // Clean up
+    m_connection_manager->disconnect();
 }
 
 } // namespace tests

@@ -125,56 +125,52 @@ NetworkError receive_size(uint32_t fd, uint32_t &size, bool non_blocking_mode)
     return NetworkError::SUCCESS;
 }
 
-NetworkError send_prefixed_data(int socket, const std::vector<uint8_t> &data)
+NetworkError send_prefixed_data(int socket,
+                                const std::vector<uint8_t> &data,
+                                bool non_blocking_mode)
 {
-    uint32_t size = htonl(static_cast<uint32_t>(data.size()));
+    NetworkError err;
 
-    if (send(socket, &size, sizeof(size), 0) != sizeof(size)) {
-        return NetworkError::SEND_ERROR;
+    err = send_size(socket,
+                    static_cast<uint32_t>(data.size()),
+                    non_blocking_mode);
+    if (err != NetworkError::SUCCESS) {
+        return err;
     }
 
-    if (send(socket, data.data(), data.size(), 0) !=
-        static_cast<ssize_t>(data.size())) {
-        return NetworkError::SEND_ERROR;
+    err = send_data(socket,
+                    data,
+                    static_cast<uint32_t>(data.size()),
+                    non_blocking_mode);
+    if (err != NetworkError::SUCCESS) {
+        return err;
     }
 
     return NetworkError::SUCCESS;
 }
 
-NetworkError receive_prefixed_data(int socket, std::vector<uint8_t> &data)
+NetworkError receive_prefixed_data(int socket,
+                                   std::vector<uint8_t> &data,
+                                   bool non_blocking_mode)
 {
-    uint32_t size_network;
+    NetworkError err;
+    uint32_t size = 0;
 
-    if (recv(socket, &size_network, sizeof(size_network), 0) !=
-        sizeof(size_network)) {
-        return NetworkError::RECEIVE_ERROR;
+    err = receive_size(socket, size, non_blocking_mode);
+    if (err != NetworkError::SUCCESS) {
+        return err;
     }
-
-    uint32_t size = ntohl(size_network);
 
     try {
         data.resize(size);
-    } catch (const std::exception &e) {
+    } catch (const std::bad_alloc &) {
         return NetworkError::ALLOCATION_ERROR;
     }
-
-    ssize_t total_received = 0;
-
-    while (total_received < static_cast<ssize_t>(size)) {
-        ssize_t bytes_received = recv(socket,
-                                      data.data() + total_received,
-                                      size - total_received,
-                                      0);
-
-        if (bytes_received <= 0) {
-            if (bytes_received == 0) {
-                return NetworkError::DISCONNECTED;
-            } else {
-                return NetworkError::RECEIVE_ERROR;
-            }
-        }
-        total_received += bytes_received;
+    err = receive_data(socket, data, size, non_blocking_mode);
+    if (err != NetworkError::SUCCESS) {
+        return err;
     }
+
     return NetworkError::SUCCESS;
 }
 

@@ -77,17 +77,23 @@ NetworkError receive_data(uint32_t socket,
  * @brief Sends data with size prefix over socket.
  * @param socket The socket to send the data to.
  * @param data The data to be sent.
+ * @param non_blocking_mode True if the socket is in non-blocking mode, false
  * @return NetworkError indicating success or failure type
  */
-NetworkError send_prefixed_data(int socket, const std::vector<uint8_t> &data);
+NetworkError send_prefixed_data(int socket,
+                                const std::vector<uint8_t> &data,
+                                bool non_blocking_mode = false);
 
 /**
  * @brief Receives data with size prefix from socket.
  * @param socket The socket to receive the data from.
  * @param data The data to be received.
+ * @param non_blocking_mode True if the socket is in non-blocking mode, false
  * @return NetworkError indicating success or failure type
  */
-NetworkError receive_prefixed_data(int socket, std::vector<uint8_t> &data);
+NetworkError receive_prefixed_data(int socket,
+                                   std::vector<uint8_t> &data,
+                                   bool non_blocking_mode = false);
 
 } // namespace network
 } // namespace common

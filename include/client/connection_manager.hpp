@@ -89,6 +89,12 @@ class ConnectionManager {
      */
     bool is_connected() const;
 
+    /**
+     * @brief Get the current encryption key
+     * @return Reference to the current encryption key
+     */
+    const std::vector<uint8_t> &get_encryption_key() const;
+
   private:
     /**
      * @brief Perform key exchange with server and save the encryption key

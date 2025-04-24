@@ -122,7 +122,8 @@ bool ConnectionManager::perform_key_exchange()
     }
 
     // Send public key to server
-    NetworkError send_result = send_prefixed_data(m_server_socket, public_key);
+    NetworkError send_result =
+        send_prefixed_data(m_server_socket, public_key, m_non_blocking_mode);
     if (send_result != NetworkError::SUCCESS) {
         m_logger->error("Failed to send public key: {}",
                         static_cast<int>(send_result));
@@ -132,8 +133,9 @@ bool ConnectionManager::perform_key_exchange()
     // Receive server's public key
     std::vector<uint8_t> server_public_key;
 
-    NetworkError recv_result =
-        receive_prefixed_data(m_server_socket, server_public_key);
+    NetworkError recv_result = receive_prefixed_data(m_server_socket,
+                                                     server_public_key,
+                                                     m_non_blocking_mode);
     if (recv_result != NetworkError::SUCCESS) {
         m_logger->error("Failed to receive server public key: {}",
                         static_cast<int>(recv_result));
@@ -189,6 +191,11 @@ void ConnectionManager::set_server_handler(
     m_server_handler = std::move(handler);
 }
 
+const std::vector<uint8_t> &ConnectionManager::get_encryption_key() const
+{
+    return m_server_info.encryption_key;
+}
+
 bool ConnectionManager::send_request(const fenris::Request &request)
 {
     if (!m_connected || m_server_socket == -1) {
@@ -200,8 +207,9 @@ bool ConnectionManager::send_request(const fenris::Request &request)
 
     std::vector<uint8_t> serialized_request = serialize_request(request);
 
-    NetworkError send_result =
-        send_prefixed_data(m_server_socket, serialized_request);
+    NetworkError send_result = send_prefixed_data(m_server_socket,
+                                                  serialized_request,
+                                                  m_non_blocking_mode);
     if (send_result != NetworkError::SUCCESS) {
         m_logger->error("Error sending request data: {}",
                         static_cast<int>(send_result));
@@ -223,8 +231,9 @@ std::optional<fenris::Response> ConnectionManager::receive_response()
 
     std::vector<uint8_t> serialized_response;
 
-    NetworkError recv_result =
-        receive_prefixed_data(m_server_socket, serialized_response);
+    NetworkError recv_result = receive_prefixed_data(m_server_socket,
+                                                     serialized_response,
+                                                     m_non_blocking_mode);
     if (recv_result != NetworkError::SUCCESS) {
         m_logger->error("Error receiving response data: {}",
                         static_cast<int>(recv_result));
