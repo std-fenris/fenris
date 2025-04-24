@@ -1,4 +1,4 @@
-#include "common/crypto.hpp"
+#include "common/crypto_manager.hpp"
 #include <cstring>
 #include <gtest/gtest.h>
 #include <random>
@@ -7,11 +7,14 @@
 
 namespace fenris {
 namespace common {
+namespace crypto {
 namespace tests {
 
 // Test basic encryption and decryption
 TEST(EncryptionTest, BasicEncryptDecrypt)
 {
+    auto crypto_manager = CryptoManager();
+
     // Create test data
     std::string message = "This is a secret message to encrypt";
     std::vector<uint8_t> plaintext(message.begin(), message.end());
@@ -29,7 +32,9 @@ TEST(EncryptionTest, BasicEncryptDecrypt)
     }
 
     // Encrypt the data
-    auto [ciphertext, encrypt_error] = encrypt_data_aes_gcm(plaintext, key, iv);
+    auto [ciphertext, encrypt_error] =
+        crypto_manager.encrypt_data(plaintext, key, iv);
+
     EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
     EXPECT_FALSE(ciphertext.empty());
     EXPECT_NE(ciphertext.size(),
@@ -42,7 +47,8 @@ TEST(EncryptionTest, BasicEncryptDecrypt)
                      std::min(ciphertext.size(), plaintext.size())));
 
     // Decrypt the data
-    auto [decrypted, decrypt_error] = decrypt_data_aes_gcm(ciphertext, key, iv);
+    auto [decrypted, decrypt_error] =
+        crypto_manager.decrypt_data(ciphertext, key, iv);
     EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
 
     // Verify the decryption result matches the original
@@ -53,17 +59,21 @@ TEST(EncryptionTest, BasicEncryptDecrypt)
 // Test empty input
 TEST(EncryptionTest, EmptyInput)
 {
+    auto crypto_manager = CryptoManager();
+
     std::vector<uint8_t> empty;
     std::vector<uint8_t> key(32, 0); // 256-bit key
     std::vector<uint8_t> iv(12, 0);  // 96-bit IV
 
     // Encrypt empty data
-    auto [ciphertext, encrypt_error] = encrypt_data_aes_gcm(empty, key, iv);
+    auto [ciphertext, encrypt_error] =
+        crypto_manager.encrypt_data(empty, key, iv);
     EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
     EXPECT_TRUE(ciphertext.empty());
 
     // Decrypt empty data
-    auto [decrypted, decrypt_error] = decrypt_data_aes_gcm(empty, key, iv);
+    auto [decrypted, decrypt_error] =
+        crypto_manager.decrypt_data(empty, key, iv);
     EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
     EXPECT_TRUE(decrypted.empty());
 }
@@ -71,6 +81,8 @@ TEST(EncryptionTest, EmptyInput)
 // Test invalid key size
 TEST(EncryptionTest, InvalidKeySize)
 {
+    auto crypto_manager = CryptoManager();
+
     std::string message = "Test message";
     std::vector<uint8_t> plaintext(message.begin(), message.end());
 
@@ -80,17 +92,18 @@ TEST(EncryptionTest, InvalidKeySize)
 
     // Encrypt with invalid key
     auto [ciphertext, encrypt_error] =
-        encrypt_data_aes_gcm(plaintext, invalid_key, iv);
+        crypto_manager.encrypt_data(plaintext, invalid_key, iv);
     EXPECT_EQ(encrypt_error, EncryptionError::INVALID_KEY_SIZE);
     EXPECT_TRUE(ciphertext.empty());
 
     // Create a valid key and encrypt for testing decryption
     std::vector<uint8_t> valid_key(32, 0);
-    auto [valid_ciphertext, _] = encrypt_data_aes_gcm(plaintext, valid_key, iv);
+    auto [valid_ciphertext, _] =
+        crypto_manager.encrypt_data(plaintext, valid_key, iv);
 
     // Decrypt with invalid key
     auto [decrypted, decrypt_error] =
-        decrypt_data_aes_gcm(valid_ciphertext, invalid_key, iv);
+        crypto_manager.decrypt_data(valid_ciphertext, invalid_key, iv);
     EXPECT_EQ(decrypt_error, EncryptionError::INVALID_KEY_SIZE);
     EXPECT_TRUE(decrypted.empty());
 }
@@ -98,6 +111,8 @@ TEST(EncryptionTest, InvalidKeySize)
 // Test invalid IV size
 TEST(EncryptionTest, InvalidIVSize)
 {
+    auto crypto_manager = CryptoManager();
+
     std::string message = "Test message";
     std::vector<uint8_t> plaintext(message.begin(), message.end());
 
@@ -108,17 +123,18 @@ TEST(EncryptionTest, InvalidIVSize)
 
     // Encrypt with invalid IV
     auto [ciphertext, encrypt_error] =
-        encrypt_data_aes_gcm(plaintext, key, invalid_iv);
+        crypto_manager.encrypt_data(plaintext, key, invalid_iv);
     EXPECT_EQ(encrypt_error, EncryptionError::INVALID_IV_SIZE);
     EXPECT_TRUE(ciphertext.empty());
 
     // Create a valid IV and encrypt for testing decryption
     std::vector<uint8_t> valid_iv(12, 0);
-    auto [valid_ciphertext, _] = encrypt_data_aes_gcm(plaintext, key, valid_iv);
+    auto [valid_ciphertext, _] =
+        crypto_manager.encrypt_data(plaintext, key, valid_iv);
 
     // Decrypt with invalid IV
     auto [decrypted, decrypt_error] =
-        decrypt_data_aes_gcm(valid_ciphertext, key, invalid_iv);
+        crypto_manager.decrypt_data(valid_ciphertext, key, invalid_iv);
     EXPECT_EQ(decrypt_error, EncryptionError::INVALID_IV_SIZE);
     EXPECT_TRUE(decrypted.empty());
 }
@@ -126,6 +142,8 @@ TEST(EncryptionTest, InvalidIVSize)
 // Test tampered ciphertext (integrity check should fail)
 TEST(EncryptionTest, TamperedCiphertext)
 {
+    auto crypto_manager = CryptoManager();
+
     std::string message = "This is a test message for integrity check";
     std::vector<uint8_t> plaintext(message.begin(), message.end());
 
@@ -133,7 +151,8 @@ TEST(EncryptionTest, TamperedCiphertext)
     std::vector<uint8_t> iv(12, 0);  // 96-bit IV
 
     // Encrypt the data
-    auto [ciphertext, encrypt_error] = encrypt_data_aes_gcm(plaintext, key, iv);
+    auto [ciphertext, encrypt_error] =
+        crypto_manager.encrypt_data(plaintext, key, iv);
     EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
 
     // Tamper with the ciphertext
@@ -142,7 +161,8 @@ TEST(EncryptionTest, TamperedCiphertext)
     }
 
     // Decrypt the tampered data
-    auto [decrypted, decrypt_error] = decrypt_data_aes_gcm(ciphertext, key, iv);
+    auto [decrypted, decrypt_error] =
+        crypto_manager.decrypt_data(ciphertext, key, iv);
     EXPECT_EQ(decrypt_error, EncryptionError::DECRYPTION_FAILED);
     EXPECT_TRUE(decrypted.empty());
 }
@@ -150,6 +170,8 @@ TEST(EncryptionTest, TamperedCiphertext)
 // Test large data encryption and decryption
 TEST(EncryptionTest, LargeData)
 {
+    auto crypto_manager = CryptoManager();
+
     // Create a large block of random data (1MB)
     std::vector<uint8_t> large_data(1024 * 1024);
     std::random_device rd;
@@ -175,11 +197,12 @@ TEST(EncryptionTest, LargeData)
 
     // Encrypt the data
     auto [ciphertext, encrypt_error] =
-        encrypt_data_aes_gcm(large_data, key, iv);
+        crypto_manager.encrypt_data(large_data, key, iv);
     EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
 
     // Decrypt the data
-    auto [decrypted, decrypt_error] = decrypt_data_aes_gcm(ciphertext, key, iv);
+    auto [decrypted, decrypt_error] =
+        crypto_manager.decrypt_data(ciphertext, key, iv);
     EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
 
     // Verify the result matches the original
@@ -191,6 +214,8 @@ TEST(EncryptionTest, LargeData)
 // Test different key sizes (AES-128, AES-192, AES-256)
 TEST(EncryptionTest, DifferentKeySizes)
 {
+    auto crypto_manager = CryptoManager();
+
     std::string message = "Testing different key sizes";
     std::vector<uint8_t> plaintext(message.begin(), message.end());
     std::vector<uint8_t> iv(12, 0);
@@ -199,11 +224,11 @@ TEST(EncryptionTest, DifferentKeySizes)
     {
         std::vector<uint8_t> key_128(16, 1);
         auto [ciphertext, encrypt_error] =
-            encrypt_data_aes_gcm(plaintext, key_128, iv);
+            crypto_manager.encrypt_data(plaintext, key_128, iv);
         EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
 
         auto [decrypted, decrypt_error] =
-            decrypt_data_aes_gcm(ciphertext, key_128, iv);
+            crypto_manager.decrypt_data(ciphertext, key_128, iv);
         EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
 
         ASSERT_EQ(decrypted.size(), plaintext.size());
@@ -215,11 +240,11 @@ TEST(EncryptionTest, DifferentKeySizes)
     {
         std::vector<uint8_t> key_192(24, 2);
         auto [ciphertext, encrypt_error] =
-            encrypt_data_aes_gcm(plaintext, key_192, iv);
+            crypto_manager.encrypt_data(plaintext, key_192, iv);
         EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
 
         auto [decrypted, decrypt_error] =
-            decrypt_data_aes_gcm(ciphertext, key_192, iv);
+            crypto_manager.decrypt_data(ciphertext, key_192, iv);
         EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
 
         ASSERT_EQ(decrypted.size(), plaintext.size());
@@ -231,11 +256,11 @@ TEST(EncryptionTest, DifferentKeySizes)
     {
         std::vector<uint8_t> key_256(32, 3);
         auto [ciphertext, encrypt_error] =
-            encrypt_data_aes_gcm(plaintext, key_256, iv);
+            crypto_manager.encrypt_data(plaintext, key_256, iv);
         EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
 
         auto [decrypted, decrypt_error] =
-            decrypt_data_aes_gcm(ciphertext, key_256, iv);
+            crypto_manager.decrypt_data(ciphertext, key_256, iv);
         EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
 
         ASSERT_EQ(decrypted.size(), plaintext.size());
@@ -245,5 +270,6 @@ TEST(EncryptionTest, DifferentKeySizes)
 }
 
 } // namespace tests
+} // namespace crypto
 } // namespace common
 } // namespace fenris
