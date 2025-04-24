@@ -1,4 +1,4 @@
-#include "common/compression.hpp"
+#include "common/compression_manager.hpp"
 #include <cstring>
 #include <gtest/gtest.h>
 #include <random>
@@ -8,28 +8,38 @@
 
 namespace fenris {
 namespace common {
+namespace compress {
 namespace tests {
 
+class CompressionTest : public ::testing::Test {
+  protected:
+    void SetUp() override
+    {
+        compression_manager = CompressionManager();
+    }
+    CompressionManager compression_manager;
+};
+
 // Test empty input for compression
-TEST(CompressionTest, CompressEmptyData)
+TEST_F(CompressionTest, CompressEmptyData)
 {
     std::vector<uint8_t> input = {};
     auto [result, success] =
-        compress_data(input, 6); // Default compression level
+        compression_manager.compress(input, 6); // Default compression level
 
     EXPECT_EQ(success, CompressionError::SUCCESS);
     EXPECT_TRUE(result.empty());
 }
 
 // Test compression of normal data
-TEST(CompressionTest, CompressNormalData)
+TEST_F(CompressionTest, CompressNormalData)
 {
     std::string test_data =
         "This is a test string that should compress well. Repeated data: ";
     test_data += test_data; // Double it to make it more compressible
 
     std::vector<uint8_t> input(test_data.begin(), test_data.end());
-    auto [compressed, success] = compress_data(input, 6);
+    auto [compressed, success] = compression_manager.compress(input, 6);
 
     EXPECT_EQ(success, CompressionError::SUCCESS);
     EXPECT_FALSE(compressed.empty());
@@ -39,7 +49,7 @@ TEST(CompressionTest, CompressNormalData)
 }
 
 // Test compression with different levels
-TEST(CompressionTest, CompressWithDifferentLevels)
+TEST_F(CompressionTest, CompressWithDifferentLevels)
 {
     std::string test_data =
         "This is a test string for compression level testing. " +
@@ -47,11 +57,11 @@ TEST(CompressionTest, CompressWithDifferentLevels)
     std::vector<uint8_t> input(test_data.begin(), test_data.end());
 
     // Test min level compression
-    auto [result_min, success_min] = compress_data(input, 1);
+    auto [result_min, success_min] = compression_manager.compress(input, 1);
     EXPECT_EQ(success_min, CompressionError::SUCCESS);
 
     // Test max level compression
-    auto [result_max, success_max] = compress_data(input, 9);
+    auto [result_max, success_max] = compression_manager.compress(input, 9);
     EXPECT_EQ(success_max, CompressionError::SUCCESS);
 
     // Higher compression level should result in same or smaller data for
@@ -61,27 +71,28 @@ TEST(CompressionTest, CompressWithDifferentLevels)
 }
 
 // Test invalid compression level
-TEST(CompressionTest, CompressInvalidLevel)
+TEST_F(CompressionTest, CompressInvalidLevel)
 {
     std::vector<uint8_t> input = {1, 2, 3, 4, 5};
-    auto [result, success] = compress_data(input, -1); // Invalid level
+    auto [result, success] =
+        compression_manager.compress(input, -1); // Invalid level
 
     EXPECT_EQ(success, CompressionError::INVALID_LEVEL);
     EXPECT_TRUE(result.empty());
 }
 
 // Test empty input for decompression
-TEST(DecompressionTest, DecompressEmptyData)
+TEST_F(CompressionTest, DecompressEmptyData)
 {
     std::vector<uint8_t> input = {};
-    auto [result, success] = decompress_data(input, 0);
+    auto [result, success] = compression_manager.decompress(input, 0);
 
     EXPECT_EQ(success, CompressionError::SUCCESS);
     EXPECT_TRUE(result.empty());
 }
 
 // Test round-trip compression and decompression
-TEST(CompressionTest, RoundTrip)
+TEST_F(CompressionTest, RoundTrip)
 {
     // Create test data
     std::string test_data = "This is a test string for round-trip "
@@ -89,12 +100,13 @@ TEST(CompressionTest, RoundTrip)
     std::vector<uint8_t> input(test_data.begin(), test_data.end());
 
     // Compress
-    auto [compressed, compress_success] = compress_data(input, 6);
+    auto [compressed, compress_success] =
+        compression_manager.compress(input, 6);
     EXPECT_EQ(compress_success, CompressionError::SUCCESS);
 
     // Decompress
     auto [decompressed, decompress_success] =
-        decompress_data(compressed, input.size());
+        compression_manager.decompress(compressed, input.size());
     EXPECT_EQ(decompress_success, CompressionError::SUCCESS);
 
     // Verify the result matches the original
@@ -103,7 +115,7 @@ TEST(CompressionTest, RoundTrip)
 }
 
 // Test large data compression and decompression
-TEST(CompressionTest, LargeData)
+TEST_F(CompressionTest, LargeData)
 {
     // Create a large block of random data (1MB)
     std::vector<uint8_t> large_data(1024 * 1024);
@@ -116,13 +128,14 @@ TEST(CompressionTest, LargeData)
     }
 
     // Compress the data
-    auto [compressed, compress_success] =
-        compress_data(large_data, 1); // Using low compression level for speed
+    auto [compressed, compress_success] = compression_manager.compress(
+        large_data,
+        1); // Using low compression level for speed
     EXPECT_EQ(compress_success, CompressionError::SUCCESS);
 
     // Decompress the data
     auto [decompressed, decompress_success] =
-        decompress_data(compressed, large_data.size());
+        compression_manager.decompress(compressed, large_data.size());
     EXPECT_EQ(decompress_success, CompressionError::SUCCESS);
 
     // Verify the result matches the original
@@ -132,34 +145,39 @@ TEST(CompressionTest, LargeData)
 }
 
 // Test decompression with invalid data
-TEST(DecompressionTest, DecompressInvalidData)
+TEST_F(CompressionTest, DecompressInvalidData)
 {
     // Create clearly invalid compressed data
     std::vector<uint8_t> invalid_data = {0x78, 0x9C, 0xFF, 0xFF, 0xFF, 0xFF};
 
-    auto [result, success] = decompress_data(invalid_data, 100);
+    auto [result, success] = compression_manager.decompress(invalid_data, 100);
 
     // Expect INVALID_DATA error because the data is invalid
     EXPECT_EQ(success, CompressionError::INVALID_DATA);
 }
 
 // Test decompression with too small buffer
-TEST(DecompressionTest, DecompressTooSmallBuffer)
+TEST_F(CompressionTest, DecompressTooSmallBuffer)
 {
-    // Create and compress test data that will decompress to a larger size
-    std::vector<uint8_t> input(1000, 'A'); // Highly compressible
+    // Create some compressible data
+    std::string test_data = std::string(1000, 'A');
+    std::vector<uint8_t> input(test_data.begin(), test_data.end());
 
-    auto [compressed, compress_success] = compress_data(input, 9);
+    // Compress it
+    auto [compressed, compress_success] =
+        compression_manager.compress(input, 6);
     EXPECT_EQ(compress_success, CompressionError::SUCCESS);
 
-    // Decompress with a buffer size that's too small
-    auto [decompressed, decompress_success] =
-        decompress_data(compressed, 10); // Actual size is 1000
+    // Try to decompress with a too-small buffer size
+    auto [result, decompress_success] =
+        compression_manager.decompress(compressed,
+                                       10); // Buffer size too small
 
-    // Expect BUFFER_TOO_SMALL error because the buffer is too small
+    // This should fail with BUFFER_TOO_SMALL error
     EXPECT_EQ(decompress_success, CompressionError::BUFFER_TOO_SMALL);
 }
 
 } // namespace tests
+} // namespace compress
 } // namespace common
 } // namespace fenris

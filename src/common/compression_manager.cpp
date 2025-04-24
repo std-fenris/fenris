@@ -1,11 +1,15 @@
-#include "common/compression.hpp"
+#include "common/compression_manager.hpp"
 #include <stdexcept>
 #include <vector>
 #include <zlib.h>
 
 namespace fenris {
 namespace common {
+namespace compress {
 
+/**
+ * Helper function to convert zlib error codes to CompressionError values
+ */
 CompressionError zlib_error_to_compression_error(int zlib_error)
 {
     switch (zlib_error) {
@@ -25,8 +29,10 @@ CompressionError zlib_error_to_compression_error(int zlib_error)
     }
 }
 
+// CompressionManager implementation
+
 std::pair<std::vector<uint8_t>, CompressionError>
-compress_data(const std::vector<uint8_t> &input, int level)
+CompressionManager::compress(const std::vector<uint8_t> &input, int level)
 {
     if (input.empty()) {
         return {std::vector<uint8_t>(), CompressionError::SUCCESS};
@@ -56,7 +62,8 @@ compress_data(const std::vector<uint8_t> &input, int level)
 }
 
 std::pair<std::vector<uint8_t>, CompressionError>
-decompress_data(const std::vector<uint8_t> &input, size_t original_size)
+CompressionManager::decompress(const std::vector<uint8_t> &input,
+                               size_t original_size)
 {
     if (input.empty()) {
         return {std::vector<uint8_t>(), CompressionError::SUCCESS};
@@ -80,5 +87,6 @@ decompress_data(const std::vector<uint8_t> &input, size_t original_size)
     return {decompressed_data, CompressionError::SUCCESS};
 }
 
+} // namespace compress
 } // namespace common
 } // namespace fenris
