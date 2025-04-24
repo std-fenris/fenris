@@ -64,35 +64,36 @@ void ConnectionManager::start()
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if ((rv = getaddrinfo(m_hostname.c_str(),
-                          m_port.c_str(),
-                          &hints,
-                          &servinfo)) != 0) {
+    rv = getaddrinfo(m_hostname.c_str(), m_port.c_str(), &hints, &servinfo);
+    if (rv != 0) {
         m_logger->error("getaddrinfo: {}", gai_strerror(rv));
         return;
     }
 
     for (p = servinfo; p != nullptr; p = p->ai_next) {
-        if ((m_server_socket =
-                 socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+        m_server_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (m_server_socket == -1) {
             m_logger->error("server: socket creation failed: {}",
                             strerror(errno));
             continue;
         }
 
         int yes = 1;
-        if (setsockopt(m_server_socket,
-                       SOL_SOCKET,
-                       SO_REUSEADDR,
-                       &yes,
-                       sizeof(int)) == -1) {
+        int rc;
+        rc = setsockopt(m_server_socket,
+                        SOL_SOCKET,
+                        SO_REUSEADDR,
+                        &yes,
+                        sizeof(int));
+        if (rc == -1) {
             m_logger->error("setsockopt failed: {}", strerror(errno));
             close(m_server_socket);
             freeaddrinfo(servinfo);
             return;
         }
 
-        if (bind(m_server_socket, p->ai_addr, p->ai_addrlen) == -1) {
+        rc = bind(m_server_socket, p->ai_addr, p->ai_addrlen);
+        if (rc == -1) {
             close(m_server_socket);
             m_logger->error("server: bind failed: {}", strerror(errno));
             continue;
@@ -259,8 +260,6 @@ bool ConnectionManager::perform_key_exchange(
     uint32_t client_socket,
     std::vector<uint8_t> &encryption_key)
 {
-    bool rc;
-
     auto [private_key, public_key, keygen_error] =
         m_crypto_manager->generate_ecdh_keypair();
     if (keygen_error != crypto::ECDHError::SUCCESS) {
@@ -269,40 +268,17 @@ bool ConnectionManager::perform_key_exchange(
     }
 
     // Receive client's public key
-    uint32_t client_public_key_size = 0;
-
-    rc = receive_size(client_socket,
-                      client_public_key_size,
-                      m_non_blocking_mode);
-    if (!rc) {
-        m_logger->error("Failed to receive client public key size");
-        return false;
-    }
-    std::vector<uint8_t> server_public_key(client_public_key_size);
-
-    rc = receive_data(client_socket,
-                      server_public_key,
-                      client_public_key_size,
-                      m_non_blocking_mode);
-    if (!rc) {
+    std::vector<uint8_t> server_public_key;
+    NetworkError recv_result =
+        receive_prefixed_data(client_socket, server_public_key);
+    if (recv_result != NetworkError::SUCCESS) {
         m_logger->error("Failed to receive client public key");
         return false;
     }
 
     // Send public key to client
-    rc = send_size(client_socket,
-                   static_cast<uint32_t>(public_key.size()),
-                   m_non_blocking_mode);
-    if (!rc) {
-        m_logger->error("Failed to send public key size");
-        return false;
-    }
-
-    rc = send_data(client_socket,
-                   public_key,
-                   static_cast<uint32_t>(public_key.size()),
-                   m_non_blocking_mode);
-    if (!rc) {
+    NetworkError send_result = send_prefixed_data(client_socket, public_key);
+    if (send_result != NetworkError::SUCCESS) {
         m_logger->error("Failed to send public key");
         return false;
     }
@@ -354,18 +330,11 @@ void ConnectionManager::handle_client(uint32_t client_socket,
     // Process client requests
     while (m_running && keep_connection) {
 
-        uint32_t message_size = 0;
-        if (!receive_size(client_socket, message_size, m_non_blocking_mode)) {
-            m_logger->error("Failed to read message size from client");
-            break;
-        }
-
-        std::vector<uint8_t> request_data(message_size);
-        if (!receive_data(client_socket,
-                          request_data,
-                          message_size,
-                          m_non_blocking_mode)) {
-            m_logger->error("Failed to read request data from client");
+        std::vector<uint8_t> request_data;
+        NetworkError recv_result =
+            receive_prefixed_data(client_socket, request_data);
+        if (recv_result != NetworkError::SUCCESS) {
+            m_logger->error("Failed to receive request data from client");
             break;
         }
 
@@ -387,17 +356,9 @@ void ConnectionManager::handle_client(uint32_t client_socket,
             break;
         }
 
-        uint32_t response_size = static_cast<uint32_t>(response_data.size());
-
-        if (!send_size(client_socket, response_size, m_non_blocking_mode)) {
-            m_logger->error("Failed to send response size to client");
-            break;
-        }
-
-        if (!send_data(client_socket,
-                       response_data,
-                       static_cast<uint32_t>(response_data.size()),
-                       m_non_blocking_mode)) {
+        NetworkError send_result =
+            send_prefixed_data(client_socket, response_data);
+        if (send_result != NetworkError::SUCCESS) {
             m_logger->error("Failed to send response data to client");
             break;
         }
