@@ -1,4 +1,5 @@
 #include "server/connection_manager.hpp"
+#include "common/logging.hpp"
 #include "common/network_utils.hpp"
 #include "common/request.hpp"
 #include "common/response.hpp"
@@ -23,10 +24,12 @@ using namespace common;
 using namespace common::network;
 
 ConnectionManager::ConnectionManager(const std::string &hostname,
-                                     const std::string &port)
+                                     const std::string &port,
+                                     const std::string &logger_name)
     : m_hostname(hostname), m_port(port), m_client_handler(nullptr),
       m_non_blocking_mode(false)
 {
+    m_logger = get_logger(logger_name);
 }
 
 ConnectionManager::~ConnectionManager()
@@ -42,13 +45,13 @@ void ConnectionManager::set_non_blocking_mode(bool enabled)
 void ConnectionManager::start()
 {
     if (m_running) {
-        std::cerr << "Connection manager already running" << std::endl;
+        m_logger->warn("Connection manager already running");
         return;
     }
 
     if (!m_client_handler) {
-        std::cerr << "No client handler set, cannot start connection manager"
-                  << std::endl;
+        m_logger->error(
+            "No client handler set, cannot start connection manager");
         return;
     }
 
@@ -64,15 +67,15 @@ void ConnectionManager::start()
                           m_port.c_str(),
                           &hints,
                           &servinfo)) != 0) {
-        std::cerr << "getaddrinfo: " << gai_strerror(rv) << std::endl;
+        m_logger->error("getaddrinfo: {}", gai_strerror(rv));
         return;
     }
 
     for (p = servinfo; p != nullptr; p = p->ai_next) {
         if ((m_server_socket =
                  socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-            std::cerr << "server: socket creation failed: " << strerror(errno)
-                      << std::endl;
+            m_logger->error("server: socket creation failed: {}",
+                            strerror(errno));
             continue;
         }
 
@@ -82,7 +85,7 @@ void ConnectionManager::start()
                        SO_REUSEADDR,
                        &yes,
                        sizeof(int)) == -1) {
-            std::cerr << "setsockopt failed: " << strerror(errno) << std::endl;
+            m_logger->error("setsockopt failed: {}", strerror(errno));
             close(m_server_socket);
             freeaddrinfo(servinfo);
             return;
@@ -90,8 +93,7 @@ void ConnectionManager::start()
 
         if (bind(m_server_socket, p->ai_addr, p->ai_addrlen) == -1) {
             close(m_server_socket);
-            std::cerr << "server: bind failed: " << strerror(errno)
-                      << std::endl;
+            m_logger->error("server: bind failed: {}", strerror(errno));
             continue;
         }
 
@@ -101,13 +103,13 @@ void ConnectionManager::start()
     freeaddrinfo(servinfo);
 
     if (p == nullptr) {
-        std::cerr << "server: failed to bind" << std::endl;
+        m_logger->error("server: failed to bind");
         return;
     }
 
     // Listen for incoming connections
     if (listen(m_server_socket, 10) == -1) {
-        std::cerr << "listen failed: " << strerror(errno) << std::endl;
+        m_logger->error("listen failed: {}", strerror(errno));
         close(m_server_socket);
         m_server_socket = -1;
         return;
@@ -123,8 +125,7 @@ void ConnectionManager::start()
     m_listen_thread =
         std::thread(&ConnectionManager::listen_for_connection, this);
 
-    std::cout << "Connection manager started on " << m_hostname << ":" << m_port
-              << std::endl;
+    m_logger->info("Connection manager started on {}:{}", m_hostname, m_port);
 }
 
 void ConnectionManager::stop()
@@ -145,12 +146,14 @@ void ConnectionManager::stop()
             try {
                 server_addr.sin_port = htons(std::stoi(m_port));
             } catch (const std::invalid_argument &e) {
-                std::cerr << "Invalid port number: " << m_port
-                          << ". Error: " << e.what() << std::endl;
+                m_logger->error("Invalid port number: {}. Error: {}",
+                                m_port,
+                                e.what());
                 return;
             } catch (const std::out_of_range &e) {
-                std::cerr << "Port number out of range: " << m_port
-                          << ". Error: " << e.what() << std::endl;
+                m_logger->error("Port number out of range: {}. Error: {}",
+                                m_port,
+                                e.what());
                 return;
             }
 
@@ -161,7 +164,7 @@ void ConnectionManager::stop()
                     (struct sockaddr *)&server_addr,
                     sizeof(server_addr));
             close(wake_socket);
-            std::cout << "wakeup socket closed" << std::endl;
+            m_logger->debug("Wakeup socket closed");
         }
     }
 
@@ -188,7 +191,7 @@ void ConnectionManager::stop()
     }
     m_client_threads.clear();
 
-    std::cout << "Connection manager stopped" << std::endl;
+    m_logger->info("Connection manager stopped");
 }
 
 void ConnectionManager::set_client_handler(
@@ -225,7 +228,7 @@ void ConnectionManager::listen_for_connection()
                 continue;
             }
 
-            std::cerr << "accept failed: " << strerror(errno) << std::endl;
+            m_logger->error("accept failed: {}", strerror(errno));
             continue;
         }
 
@@ -235,8 +238,7 @@ void ConnectionManager::listen_for_connection()
                   &(((struct sockaddr_in *)&client_addr)->sin_addr),
                   client_ip,
                   sizeof client_ip);
-
-        std::cout << "server: got connection from " << client_ip << std::endl;
+        m_logger->info("server: got connection from {}", client_ip);
 
         uint32_t client_id = generate_client_id();
 
@@ -273,7 +275,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
 
         uint32_t message_size = 0;
         if (!receive_size(client_socket, message_size, m_non_blocking_mode)) {
-            std::cerr << "Failed to read message size from client" << std::endl;
+            m_logger->error("Failed to read message size from client");
             break;
         }
 
@@ -282,7 +284,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
                           request_data,
                           message_size,
                           m_non_blocking_mode)) {
-            std::cerr << "Failed to read request data from client" << std::endl;
+            m_logger->error("Failed to read request data from client");
             break;
         }
 
@@ -290,8 +292,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
         try {
             request = deserialize_request(request_data);
         } catch (const std::exception &e) {
-            std::cerr << "Exception while parsing request: " << e.what()
-                      << std::endl;
+            m_logger->error("Exception while parsing request: {}", e.what());
             break;
         }
 
@@ -301,14 +302,14 @@ void ConnectionManager::handle_client(uint32_t client_socket,
 
         std::vector<uint8_t> response_data = serialize_response(response.first);
         if (response_data.empty()) {
-            std::cerr << "Failed to serialize response" << std::endl;
+            m_logger->error("Failed to serialize response");
             break;
         }
 
         uint32_t response_size = static_cast<uint32_t>(response_data.size());
 
         if (!send_size(client_socket, response_size, m_non_blocking_mode)) {
-            std::cerr << "Failed to send response size to client" << std::endl;
+            m_logger->error("Failed to send response size to client");
             break;
         }
 
@@ -316,7 +317,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
                        response_data,
                        static_cast<uint32_t>(response_data.size()),
                        m_non_blocking_mode)) {
-            std::cerr << "Failed to send response data to client" << std::endl;
+            m_logger->error("Failed to send response data to client");
             break;
         }
     }

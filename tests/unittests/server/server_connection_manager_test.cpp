@@ -216,7 +216,8 @@ class ServerConnectionManagerTest : public ::testing::Test {
         auto handler_ptr = std::make_unique<MockClientHandler>(true, 10);
         m_mock_handler_ptr = handler_ptr.get();
         m_connection_manager =
-            std::make_unique<ConnectionManager>("127.0.0.1", m_port_str);
+            std::make_unique<ConnectionManager>("127.0.0.1", m_port_str,
+                                               "TestServerConnectionManager");
 
         m_connection_manager->set_client_handler(std::move(handler_ptr));
         m_connection_manager->set_non_blocking_mode(false);

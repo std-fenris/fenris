@@ -288,8 +288,10 @@ class ClientConnectionManagerTest : public ::testing::Test {
         m_port_str = std::to_string(m_port);
 
         m_connection_manager =
-            std::make_unique<fenris::client::ConnectionManager>("127.0.0.1",
-                                                                m_port_str);
+            std::make_unique<fenris::client::ConnectionManager>(
+                "127.0.0.1",
+                m_port_str,
+                "TestClientConnectionManager");
     }
 
     void TearDown() override
@@ -365,10 +367,10 @@ TEST_F(ClientConnectionManagerTest, ReceiveResponse)
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     fenris::Response expected_response;
-        expected_response.set_success(true);
-        expected_response.set_type(fenris::ResponseType::PONG);
-        expected_response.set_data("TestPong");
-        m_mock_server->set_next_response(expected_response);
+    expected_response.set_success(true);
+    expected_response.set_type(fenris::ResponseType::PONG);
+    expected_response.set_data("TestPong");
+    m_mock_server->set_next_response(expected_response);
 
     fenris::Request dummy_request;
     dummy_request.set_command(fenris::RequestType::PING);

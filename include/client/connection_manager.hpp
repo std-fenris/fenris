@@ -2,6 +2,8 @@
 #define FENRIS_CLIENT_CONNECTION_MANAGER_HPP
 
 #include "client/client.hpp"
+#include "common/crypto_manager.hpp"
+#include "common/logging.hpp"
 #include "fenris.pb.h"
 
 #include <atomic>
@@ -32,8 +34,12 @@ class ConnectionManager {
      * @brief Constructor
      * @param server_hostname The hostname or IP address of the server
      * @param server_port The port the server is listening on
+     * @param logger_name Name for this connection manager's logger
      */
-    ConnectionManager(const std::string &hostname, const std::string &port);
+    ConnectionManager(
+        const std::string &hostname,
+        const std::string &port,
+        const std::string &logger_name = "ClientConnectionManager");
 
     /**
      * @brief Destructor, ensures proper cleanup of resources
@@ -92,6 +98,7 @@ class ConnectionManager {
     std::atomic<bool> m_connected{false};
     std::mutex m_socket_mutex;
     ServerInfo m_server_info;
+    common::Logger m_logger;
 };
 
 /**

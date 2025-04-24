@@ -1,4 +1,5 @@
 #include "client/connection_manager.hpp"
+#include "common/logging.hpp"
 #include "common/network_utils.hpp"
 #include "common/request.hpp"
 #include "common/response.hpp"
@@ -23,11 +24,13 @@ using namespace common;
 using namespace common::network;
 
 ConnectionManager::ConnectionManager(const std::string &hostname,
-                                     const std::string &port)
+                                     const std::string &port,
+                                     const std::string &logger_name)
     : m_server_hostname(hostname), m_server_port(port),
       m_server_handler(nullptr), m_non_blocking_mode(false),
       m_server_socket(-1), m_connected(false)
 {
+    m_logger = get_logger(logger_name);
 }
 
 ConnectionManager::~ConnectionManager()
@@ -44,7 +47,7 @@ bool ConnectionManager::connect()
 {
     // Don't reconnect if already connected
     if (m_connected) {
-        std::cerr << "Already connected to server" << std::endl;
+        m_logger->warn("Already connected to server");
         return true;
     }
 
@@ -59,7 +62,7 @@ bool ConnectionManager::connect()
                           m_server_port.c_str(),
                           &hints,
                           &servinfo)) != 0) {
-        std::cerr << "getaddrinfo: " << gai_strerror(rv) << std::endl;
+        m_logger->error("getaddrinfo: {}", gai_strerror(rv));
         return false;
     }
     ServerInfo server_info;
@@ -67,15 +70,14 @@ bool ConnectionManager::connect()
     for (p = servinfo; p != nullptr; p = p->ai_next) {
         if ((m_server_socket =
                  socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-            std::cerr << "client: socket creation failed: " << strerror(errno)
-                      << std::endl;
+            m_logger->error("client: socket creation failed: {}",
+                            strerror(errno));
             continue;
         }
 
         if (::connect(m_server_socket, p->ai_addr, p->ai_addrlen) == -1) {
             close(m_server_socket);
-            std::cerr << "client: connect failed: " << strerror(errno)
-                      << std::endl;
+            m_logger->error("client: connect failed: {}", strerror(errno));
             continue;
         }
 
@@ -85,7 +87,7 @@ bool ConnectionManager::connect()
     freeaddrinfo(servinfo);
 
     if (p == nullptr) {
-        std::cerr << "client: failed to connect to server" << std::endl;
+        m_logger->error("client: failed to connect to server");
         return false;
     }
 
@@ -97,8 +99,9 @@ bool ConnectionManager::connect()
 
     m_connected = true;
 
-    std::cout << "Connected to server " << m_server_hostname << ":"
-              << m_server_port << std::endl;
+    m_logger->info("Connected to server {}:{}",
+                   m_server_hostname,
+                   m_server_port);
 
     // TODO: Key exchange step - implement secure key exchange protocol here
     // This should establish shared encryption keys between client and server
@@ -118,7 +121,7 @@ void ConnectionManager::disconnect()
     }
 
     if (m_connected.exchange(false)) {
-        std::cout << "Disconnecting from server" << std::endl;
+        m_logger->info("Disconnecting from server");
     }
 }
 
@@ -136,8 +139,7 @@ void ConnectionManager::set_server_handler(
 bool ConnectionManager::send_request(const fenris::Request &request)
 {
     if (!m_connected || m_server_socket == -1) {
-        std::cerr << "Cannot send request: not connected to server"
-                  << std::endl;
+        m_logger->error("Cannot send request: not connected to server");
         return false;
     }
 
@@ -147,7 +149,7 @@ bool ConnectionManager::send_request(const fenris::Request &request)
     uint32_t request_size = static_cast<uint32_t>(serialized_request.size());
 
     if (!send_size(m_server_socket, request_size, m_non_blocking_mode)) {
-        std::cerr << "Error sending request size" << std::endl;
+        m_logger->error("Error sending request size");
         m_connected = false;
         return false;
     }
@@ -156,7 +158,7 @@ bool ConnectionManager::send_request(const fenris::Request &request)
                    serialized_request,
                    static_cast<uint32_t>(serialized_request.size()),
                    m_non_blocking_mode)) {
-        std::cerr << "Error sending request data" << std::endl;
+        m_logger->error("Error sending request data");
         m_connected = false;
         return false;
     }
@@ -167,8 +169,7 @@ bool ConnectionManager::send_request(const fenris::Request &request)
 std::optional<fenris::Response> ConnectionManager::receive_response()
 {
     if (!m_connected || m_server_socket == -1) {
-        std::cerr << "Cannot receive response: not connected to server"
-                  << std::endl;
+        m_logger->error("Cannot receive response: not connected to server");
         return std::nullopt;
     }
 
@@ -176,7 +177,7 @@ std::optional<fenris::Response> ConnectionManager::receive_response()
 
     uint32_t response_size = 0;
     if (!receive_size(m_server_socket, response_size, m_non_blocking_mode)) {
-        std::cerr << "Error receiving response size" << std::endl;
+        m_logger->error("Error receiving response size");
         m_connected = false;
         return std::nullopt;
     }
@@ -186,7 +187,7 @@ std::optional<fenris::Response> ConnectionManager::receive_response()
                       serialized_response,
                       response_size,
                       m_non_blocking_mode)) {
-        std::cerr << "Error receiving response data" << std::endl;
+        m_logger->error("Error receiving response data");
         m_connected = false;
         return std::nullopt;
     }
