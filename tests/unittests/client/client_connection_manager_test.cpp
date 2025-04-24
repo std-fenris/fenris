@@ -26,29 +26,7 @@ namespace client {
 namespace tests {
 
 using namespace fenris::common;
-
-bool send_prefixed_data(int sock, const std::vector<uint8_t> &data)
-{
-    return fenris::common::network::send_size(sock, data.size(), false) &&
-           fenris::common::network::send_data(sock, data, data.size(), false);
-}
-
-bool receive_prefixed_data(int sock, std::vector<uint8_t> &data)
-{
-    uint32_t size = 0;
-    if (!fenris::common::network::receive_size(sock, size, false)) {
-        return false;
-    }
-
-    constexpr uint32_t MAX_REASONABLE_SIZE = 10 * 1024 * 1024; // 10 MB limit
-    if (size == 0 || size > MAX_REASONABLE_SIZE) {
-        std::cerr << "Invalid size received in receive_prefixed_data: " << size
-                  << std::endl;
-        return false;
-    }
-    data.resize(size);
-    return fenris::common::network::receive_data(sock, data, size, false);
-}
+using namespace fenris::common::network;
 
 // --- Mock Server Implementation ---
 class MockServer {
@@ -222,9 +200,10 @@ class MockServer {
 
         while (m_running) {
             std::vector<uint8_t> request_data;
-            if (!receive_prefixed_data(sock, request_data)) {
-                if (m_running) { // Only log error if server is supposed to be
-                                 // running
+            NetworkError receive_result =
+                receive_prefixed_data(sock, request_data);
+            if (receive_result != NetworkError::SUCCESS) {
+                if (m_running) {
                     std::cerr << "MockServer: Failed to receive request data "
                                  "or client disconnected."
                               << std::endl;
@@ -256,7 +235,9 @@ class MockServer {
 
             std::vector<uint8_t> response_data =
                 serialize_response(response_to_send);
-            if (!send_prefixed_data(sock, response_data)) {
+
+            NetworkError send_result = send_prefixed_data(sock, response_data);
+            if (send_result != NetworkError::SUCCESS) {
                 std::cerr << "MockServer: Failed to send response data."
                           << std::endl;
                 break; // Error sending
@@ -288,13 +269,16 @@ class MockServer {
 
         // Receive the client's public key size
         std::vector<uint8_t> client_public_key;
-        if (!receive_prefixed_data(sock, client_public_key)) {
+        NetworkError recv_result =
+            receive_prefixed_data(sock, client_public_key);
+        if (recv_result != NetworkError::SUCCESS) {
             std::cerr << "Failed to receive client public key" << std::endl;
             return false;
         }
 
         // Send our public key to the client
-        if (!send_prefixed_data(sock, public_key)) {
+        NetworkError send_result = send_prefixed_data(sock, client_public_key);
+        if (send_result != NetworkError::SUCCESS) {
             std::cerr << "Failed to send server public key" << std::endl;
             return false;
         }
@@ -512,7 +496,7 @@ TEST_F(ClientConnectionManagerTest, ServerDisconnectDuringReceive)
     // Stop the server abruptly *before* client tries to receive
     m_mock_server->stop();
     std::this_thread::sleep_for(
-        std::chrono::milliseconds(100)); // Ensure server socket is closed
+        std::chrono::milliseconds(1500)); // Ensure server socket is closed
 
     // Attempt to receive - should fail and update connection status
     auto received_response_opt = m_connection_manager->receive_response();

@@ -1,4 +1,5 @@
 #include "common/crypto_manager.hpp"
+#include "common/network_utils.hpp"
 #include "common/request.hpp"
 #include "common/response.hpp"
 #include "fenris.pb.h"
@@ -22,70 +23,7 @@ namespace server {
 namespace tests {
 
 using namespace fenris::common;
-
-bool send_prefixed_data(int sock, const std::vector<uint8_t> &data)
-{
-    uint32_t size = htonl(static_cast<uint32_t>(data.size()));
-
-    if (send(sock, &size, sizeof(size), 0) != sizeof(size)) {
-        return false;
-    }
-
-    if (send(sock, data.data(), data.size(), 0) !=
-        static_cast<ssize_t>(data.size())) {
-        return false;
-    }
-
-    return true;
-}
-
-bool receive_prefixed_data(int sock, std::vector<uint8_t> &data)
-{
-    uint32_t size_network;
-
-    if (recv(sock, &size_network, sizeof(size_network), 0) !=
-        sizeof(size_network)) {
-        std::cerr << "Failed to receive size prefix" << std::endl;
-        return false;
-    }
-
-    uint32_t size = ntohl(size_network);
-
-    // Using 100MB as a reasonable upper limit for test data
-    constexpr uint32_t MAX_REASONABLE_SIZE = 100 * 1024 * 1024;
-    if (size == 0 || size > MAX_REASONABLE_SIZE) {
-        std::cerr << "Invalid size received: " << size
-                  << " (possibly corrupted data)" << std::endl;
-        return false;
-    }
-
-    try {
-        data.resize(size);
-    } catch (const std::exception &e) {
-        std::cerr << "Failed to allocate buffer for size " << size << ": "
-                  << e.what() << std::endl;
-        return false;
-    }
-
-    ssize_t total_received = 0;
-
-    while (total_received < static_cast<ssize_t>(size)) {
-        ssize_t bytes_received =
-            recv(sock, data.data() + total_received, size - total_received, 0);
-
-        if (bytes_received <= 0) {
-            if (bytes_received == 0) {
-                std::cerr << "Connection closed by peer" << std::endl;
-            } else {
-                std::cerr << "Error receiving data: " << strerror(errno)
-                          << std::endl;
-            }
-            return false;
-        }
-        total_received += bytes_received;
-    }
-    return true;
-}
+using namespace fenris::common::network;
 
 // Mock implementation of ClientHandler for testing
 class MockClientHandler : public ClientHandler {
@@ -217,13 +155,16 @@ bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
         return false;
     }
 
-    if (!send_prefixed_data(sock, public_key)) {
+    NetworkError send_result = send_prefixed_data(sock, public_key);
+    if (send_result != NetworkError::SUCCESS) {
         std::cerr << "Failed to send client public key" << std::endl;
         return false;
     }
 
     std::vector<uint8_t> server_public_key;
-    if (!receive_prefixed_data(sock, server_public_key)) {
+    NetworkError receive_result =
+        receive_prefixed_data(sock, server_public_key);
+    if (receive_result != NetworkError::SUCCESS) {
         std::cerr << "Failed to receive server public key" << std::endl;
         return false;
     }
@@ -390,12 +331,14 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
     ping_request.set_command(fenris::RequestType::PING);
 
     std::vector<uint8_t> serialized_request = serialize_request(ping_request);
-    ASSERT_TRUE(send_prefixed_data(client_sock, serialized_request));
+    ASSERT_EQ(send_prefixed_data(client_sock, serialized_request),
+              NetworkError::SUCCESS);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     std::vector<uint8_t> received_data;
-    ASSERT_TRUE(receive_prefixed_data(client_sock, received_data));
+    ASSERT_EQ(receive_prefixed_data(client_sock, received_data),
+              NetworkError::SUCCESS);
 
     fenris::Response response = deserialize_response(received_data);
     ASSERT_TRUE(response.success());
@@ -411,12 +354,14 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
     terminate_request.set_command(fenris::RequestType::TERMINATE);
     std::vector<uint8_t> serialized_terminate_request =
         serialize_request(terminate_request);
-    ASSERT_TRUE(send_prefixed_data(client_sock, serialized_terminate_request));
+    ASSERT_EQ(send_prefixed_data(client_sock, serialized_terminate_request),
+              NetworkError::SUCCESS);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     std::vector<uint8_t> terminate_received_data;
-    ASSERT_TRUE(receive_prefixed_data(client_sock, terminate_received_data));
+    ASSERT_EQ(receive_prefixed_data(client_sock, terminate_received_data),
+              NetworkError::SUCCESS);
 
     fenris::Response terminate_response =
         deserialize_response(terminate_received_data);
@@ -439,10 +384,12 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
         }
 
         std::vector<uint8_t> serialized_request = serialize_request(request);
-        ASSERT_TRUE(send_prefixed_data(sock, serialized_request));
+        ASSERT_EQ(send_prefixed_data(sock, serialized_request),
+                  NetworkError::SUCCESS);
 
         std::vector<uint8_t> received_data;
-        ASSERT_TRUE(receive_prefixed_data(sock, received_data));
+        ASSERT_EQ(receive_prefixed_data(sock, received_data),
+                  NetworkError::SUCCESS);
 
         fenris::Response response = deserialize_response(received_data);
         ASSERT_TRUE(response.success());
@@ -460,12 +407,14 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
         terminate_request.set_command(fenris::RequestType::TERMINATE);
         std::vector<uint8_t> serialized_terminate_request =
             serialize_request(terminate_request);
-        ASSERT_TRUE(send_prefixed_data(sock, serialized_terminate_request));
+        ASSERT_EQ(send_prefixed_data(sock, serialized_terminate_request),
+                  NetworkError::SUCCESS);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         std::vector<uint8_t> terminate_received_data;
-        ASSERT_TRUE(receive_prefixed_data(sock, terminate_received_data));
+        ASSERT_EQ(receive_prefixed_data(sock, terminate_received_data),
+                  NetworkError::SUCCESS);
 
         fenris::Response terminate_response =
             deserialize_response(terminate_received_data);
@@ -519,7 +468,8 @@ TEST_F(ServerConnectionManagerTest, ClientDisconnection)
     ping_request.set_command(fenris::RequestType::PING);
 
     std::vector<uint8_t> serialized_request = serialize_request(ping_request);
-    ASSERT_TRUE(send_prefixed_data(client_sock, serialized_request));
+    ASSERT_EQ(send_prefixed_data(client_sock, serialized_request),
+              NetworkError::SUCCESS);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     close(client_sock);
@@ -557,10 +507,12 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     read_request.set_filename("example.dat");
 
     std::vector<uint8_t> serialized_read_req = serialize_request(read_request);
-    ASSERT_TRUE(send_prefixed_data(client_sock, serialized_read_req));
+    ASSERT_EQ(send_prefixed_data(client_sock, serialized_read_req),
+              NetworkError::SUCCESS);
 
     std::vector<uint8_t> read_response_data;
-    ASSERT_TRUE(receive_prefixed_data(client_sock, read_response_data));
+    ASSERT_EQ(receive_prefixed_data(client_sock, read_response_data),
+              NetworkError::SUCCESS);
     fenris::Response read_response = deserialize_response(read_response_data);
     ASSERT_TRUE(read_response.success());
     ASSERT_EQ(read_response.data(), "READ_FILE");
@@ -572,10 +524,12 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
 
     std::vector<uint8_t> serialized_write_req =
         serialize_request(write_request);
-    ASSERT_TRUE(send_prefixed_data(client_sock, serialized_write_req));
+    ASSERT_EQ(send_prefixed_data(client_sock, serialized_write_req),
+              NetworkError::SUCCESS);
 
     std::vector<uint8_t> write_response_data;
-    ASSERT_TRUE(receive_prefixed_data(client_sock, write_response_data));
+    ASSERT_EQ(receive_prefixed_data(client_sock, write_response_data),
+              NetworkError::SUCCESS);
     fenris::Response write_response = deserialize_response(write_response_data);
     ASSERT_TRUE(write_response.success());
     ASSERT_EQ(write_response.data(), "WRITE_FILE");
@@ -596,14 +550,16 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     terminate_request.set_command(fenris::RequestType::TERMINATE);
     std::vector<uint8_t> serialized_terminate_request =
         serialize_request(terminate_request);
-    ASSERT_TRUE(send_prefixed_data(client_sock, serialized_terminate_request));
+    ASSERT_EQ(send_prefixed_data(client_sock, serialized_terminate_request),
+              NetworkError::SUCCESS);
     std::cout << "Sent terminate request: " << terminate_request.DebugString()
               << std::endl;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     std::vector<uint8_t> terminate_received_data;
-    ASSERT_TRUE(receive_prefixed_data(client_sock, terminate_received_data));
+    ASSERT_EQ(receive_prefixed_data(client_sock, terminate_received_data),
+              NetworkError::SUCCESS);
     std::cout << "Received terminate data size: "
               << terminate_received_data.size() << std::endl;
 }

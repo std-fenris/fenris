@@ -53,32 +53,31 @@ bool ConnectionManager::connect()
     }
 
     struct addrinfo hints, *servinfo, *p;
-    int rv;
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC; // Use IPv4 or IPv6
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((rv = getaddrinfo(m_server_hostname.c_str(),
-                          m_server_port.c_str(),
-                          &hints,
-                          &servinfo)) != 0) {
+    int rv = getaddrinfo(m_server_hostname.c_str(),
+                         m_server_port.c_str(),
+                         &hints,
+                         &servinfo);
+    if (rv != 0) {
         m_logger->error("getaddrinfo: {}", gai_strerror(rv));
         return false;
     }
-    ServerInfo server_info;
 
+    // Loop through all the results and connect to the first we can
     for (p = servinfo; p != nullptr; p = p->ai_next) {
-        if ((m_server_socket =
-                 socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-            m_logger->error("client: socket creation failed: {}",
-                            strerror(errno));
+        m_server_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (m_server_socket == -1) {
+            m_logger->error("socket creation failed: {}", strerror(errno));
             continue;
         }
 
-        if (::connect(m_server_socket, p->ai_addr, p->ai_addrlen) == -1) {
+        int rc = ::connect(m_server_socket, p->ai_addr, p->ai_addrlen);
+        if (rc == -1) {
             close(m_server_socket);
-            m_logger->error("client: connect failed: {}", strerror(errno));
+            m_logger->error("connect failed: {}", strerror(errno));
             continue;
         }
 
@@ -115,8 +114,6 @@ bool ConnectionManager::connect()
 
 bool ConnectionManager::perform_key_exchange()
 {
-    bool rc;
-
     auto [private_key, public_key, keygen_error] =
         m_crypto_manager->generate_ecdh_keypair();
     if (keygen_error != crypto::ECDHError::SUCCESS) {
@@ -125,41 +122,21 @@ bool ConnectionManager::perform_key_exchange()
     }
 
     // Send public key to server
-    rc = send_size(m_server_socket,
-                   static_cast<uint32_t>(public_key.size()),
-                   m_non_blocking_mode);
-    if (!rc) {
-        m_logger->error("Failed to send public key size");
-        return false;
-    }
-
-    rc = send_data(m_server_socket,
-                   public_key,
-                   static_cast<uint32_t>(public_key.size()),
-                   m_non_blocking_mode);
-    if (!rc) {
-        m_logger->error("Failed to send public key");
+    NetworkError send_result = send_prefixed_data(m_server_socket, public_key);
+    if (send_result != NetworkError::SUCCESS) {
+        m_logger->error("Failed to send public key: {}",
+                        static_cast<int>(send_result));
         return false;
     }
 
     // Receive server's public key
-    uint32_t server_public_key_size = 0;
+    std::vector<uint8_t> server_public_key;
 
-    rc = receive_size(m_server_socket,
-                      server_public_key_size,
-                      m_non_blocking_mode);
-    if (!rc) {
-        m_logger->error("Failed to receive server public key size");
-        return false;
-    }
-    std::vector<uint8_t> server_public_key(server_public_key_size);
-
-    rc = receive_data(m_server_socket,
-                      server_public_key,
-                      server_public_key_size,
-                      m_non_blocking_mode);
-    if (!rc) {
-        m_logger->error("Failed to receive server public key");
+    NetworkError recv_result =
+        receive_prefixed_data(m_server_socket, server_public_key);
+    if (recv_result != NetworkError::SUCCESS) {
+        m_logger->error("Failed to receive server public key: {}",
+                        static_cast<int>(recv_result));
         return false;
     }
 
@@ -222,19 +199,12 @@ bool ConnectionManager::send_request(const fenris::Request &request)
     std::lock_guard<std::mutex> lock(m_socket_mutex);
 
     std::vector<uint8_t> serialized_request = serialize_request(request);
-    uint32_t request_size = static_cast<uint32_t>(serialized_request.size());
 
-    if (!send_size(m_server_socket, request_size, m_non_blocking_mode)) {
-        m_logger->error("Error sending request size");
-        m_connected = false;
-        return false;
-    }
-
-    if (!send_data(m_server_socket,
-                   serialized_request,
-                   static_cast<uint32_t>(serialized_request.size()),
-                   m_non_blocking_mode)) {
-        m_logger->error("Error sending request data");
+    NetworkError send_result =
+        send_prefixed_data(m_server_socket, serialized_request);
+    if (send_result != NetworkError::SUCCESS) {
+        m_logger->error("Error sending request data: {}",
+                        static_cast<int>(send_result));
         m_connected = false;
         return false;
     }
@@ -251,19 +221,19 @@ std::optional<fenris::Response> ConnectionManager::receive_response()
 
     std::lock_guard<std::mutex> lock(m_socket_mutex);
 
-    uint32_t response_size = 0;
-    if (!receive_size(m_server_socket, response_size, m_non_blocking_mode)) {
-        m_logger->error("Error receiving response size");
-        m_connected = false;
-        return std::nullopt;
-    }
+    std::vector<uint8_t> serialized_response;
 
-    std::vector<uint8_t> serialized_response(response_size);
-    if (!receive_data(m_server_socket,
-                      serialized_response,
-                      response_size,
-                      m_non_blocking_mode)) {
-        m_logger->error("Error receiving response data");
+    NetworkError recv_result =
+        receive_prefixed_data(m_server_socket, serialized_response);
+    if (recv_result != NetworkError::SUCCESS) {
+        m_logger->error("Error receiving response data: {}",
+                        static_cast<int>(recv_result));
+
+        // If we received a disconnection, update our connection status
+        if (recv_result == NetworkError::DISCONNECTED) {
+            m_logger->warn("Server disconnected while receiving response data");
+        }
+
         m_connected = false;
         return std::nullopt;
     }
