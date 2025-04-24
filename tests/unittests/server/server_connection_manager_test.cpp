@@ -1,3 +1,4 @@
+#include "common/crypto_manager.hpp"
 #include "common/request.hpp"
 #include "common/response.hpp"
 #include "fenris.pb.h"
@@ -205,6 +206,47 @@ int create_and_connect_client_socket(const char *server_ip, int server_port)
     return client_socket;
 }
 
+bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
+{
+    common::crypto::CryptoManager crypto_manager;
+
+    auto [private_key, public_key, keygen_error] =
+        crypto_manager.generate_ecdh_keypair();
+    if (keygen_error != common::crypto::ECDHError::SUCCESS) {
+        std::cerr << "Failed to generate client ECDH keypair" << std::endl;
+        return false;
+    }
+
+    if (!send_prefixed_data(sock, public_key)) {
+        std::cerr << "Failed to send client public key" << std::endl;
+        return false;
+    }
+
+    std::vector<uint8_t> server_public_key;
+    if (!receive_prefixed_data(sock, server_public_key)) {
+        std::cerr << "Failed to receive server public key" << std::endl;
+        return false;
+    }
+
+    auto [shared_secret, ss_error] =
+        crypto_manager.compute_ecdh_shared_secret(private_key,
+                                                  server_public_key);
+    if (ss_error != common::crypto::ECDHError::SUCCESS) {
+        std::cerr << "Failed to compute shared secret" << std::endl;
+        return false;
+    }
+
+    auto [derived_key, key_derive_error] =
+        crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
+    if (key_derive_error != common::crypto::ECDHError::SUCCESS) {
+        std::cerr << "Failed to derive key from shared secret" << std::endl;
+        return false;
+    }
+
+    shared_key = derived_key;
+    return true;
+}
+
 class ServerConnectionManagerTest : public ::testing::Test {
   protected:
     void SetUp() override
@@ -216,8 +258,9 @@ class ServerConnectionManagerTest : public ::testing::Test {
         auto handler_ptr = std::make_unique<MockClientHandler>(true, 10);
         m_mock_handler_ptr = handler_ptr.get();
         m_connection_manager =
-            std::make_unique<ConnectionManager>("127.0.0.1", m_port_str,
-                                               "TestServerConnectionManager");
+            std::make_unique<ConnectionManager>("127.0.0.1",
+                                                m_port_str,
+                                                "TestServerConnectionManager");
 
         m_connection_manager->set_client_handler(std::move(handler_ptr));
         m_connection_manager->set_non_blocking_mode(false);
@@ -245,6 +288,17 @@ class ServerConnectionManagerTest : public ::testing::Test {
         int client_sock = create_and_connect_client_socket("127.0.0.1", m_port);
         if (client_sock >= 0) {
             m_client_sockets.push_back(client_sock);
+
+            std::vector<uint8_t> shared_key;
+            if (!perform_client_key_exchange(client_sock, shared_key)) {
+                std::cerr << "Key exchange failed during test client connection"
+                          << std::endl;
+                close(client_sock);
+                m_client_sockets.pop_back();
+                return -1;
+            }
+            std::cout << "Key exchange successful for client socket: "
+                      << client_sock << std::endl;
         }
         return client_sock;
     }
