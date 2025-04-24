@@ -74,7 +74,7 @@ bool initialize_logging(const LoggingConfig &config,
     }
 }
 
-std::shared_ptr<spdlog::logger> get_logger(const std::string &logger_name)
+Logger get_logger(const std::string &logger_name)
 {
     auto it = loggers.find(logger_name);
     if (it != loggers.end()) {

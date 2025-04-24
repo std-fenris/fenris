@@ -11,6 +11,8 @@
 namespace fenris {
 namespace common {
 
+using Logger = std::shared_ptr<spdlog::logger>;
+
 /**
  * Enum that mirrors spdlog::level::level_enum but is part of our API
  */
@@ -53,8 +55,7 @@ bool initialize_logging(const LoggingConfig &config,
  * @param logger_name Name of the logger to get
  * @return Logger instance
  */
-std::shared_ptr<spdlog::logger>
-get_logger(const std::string &logger_name = "fenris");
+Logger get_logger(const std::string &logger_name = "fenris");
 
 /**
  * Set the global log level

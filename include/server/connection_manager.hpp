@@ -1,7 +1,9 @@
 #ifndef FENRIS_SERVER_CONNECTION_MANAGER_HPP
 #define FENRIS_SERVER_CONNECTION_MANAGER_HPP
 
-#include "fenris.pb.h" // Use Protocol Buffers directly
+#include "common/crypto_manager.hpp"
+#include "common/logging.hpp"
+#include "fenris.pb.h"
 
 #include <atomic>
 #include <cstdint>
@@ -32,8 +34,12 @@ class ConnectionManager {
      * @brief Constructor
      * @param hostname Hostname or IP address to bind to
      * @param port Port to listen on
+     * @param logger_name Name for this connection manager's logger
      */
-    ConnectionManager(const std::string &hostname, const std::string &port);
+    ConnectionManager(
+        const std::string &hostname,
+        const std::string &port,
+        const std::string &logger_name = "ServerConnectionManager");
 
     /**
      * @brief Destructor
@@ -102,10 +108,12 @@ class ConnectionManager {
     bool m_non_blocking_mode;
 
     // Client management
-    std::unordered_map<uint32_t, uint32_t> m_client_sockets;
+    std::unordered_map<uint32_t, uint32_t>
+        m_client_sockets; // (client_id -> client socket)
     std::vector<std::thread> m_client_threads;
     mutable std::mutex m_client_mutex;
     std::atomic<uint32_t> m_next_client_id{1};
+    common::Logger m_logger;
 };
 
 /**
