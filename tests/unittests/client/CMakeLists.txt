@@ -21,3 +21,4 @@ function(add_fenris_client_unittest test_name)
 endfunction()
 
 add_fenris_client_unittest(client_connection_manager_test)
+add_fenris_client_unittest(client_request_manager_test)

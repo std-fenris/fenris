@@ -12,8 +12,9 @@ enum RequestType {
   INFO_FILE = 6;
   CREATE_DIR = 7;
   LIST_DIR = 8;
-  DELETE_DIR = 9;
-  TERMINATE = 10;
+  CHANGE_DIR =9;
+  DELETE_DIR = 10;
+  TERMINATE = 11;
 }
 
 message Request {
@@ -51,6 +52,8 @@ message FileInfo {
   uint64 size = 2;
   bool is_directory = 3;
   uint64 modified_time = 4;
+  // Optional: file permissions
+  uint32 permissions = 5;
 }
 
 message DirectoryListing {
