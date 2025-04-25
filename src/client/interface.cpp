@@ -84,6 +84,23 @@ std::string TUI::get_server_IP()
     return ip;
 }
 
+std::string TUI::get_port_number()
+{
+    std::string port;
+    std::cout << "Enter server port number: ";
+    std::getline(std::cin, port);
+
+    // Validate port number (should be a number between 1 and 65535)
+    if (port.empty() || !std::all_of(port.begin(), port.end(), ::isdigit) ||
+        std::stoi(port) < 1 || std::stoi(port) > 65535) {
+        std::cout << "Invalid port number. Using default port 7777."
+                  << std::endl;
+        return "7777"; // Default port
+    }
+
+    return port;
+}
+
 std::vector<std::string> TUI::get_command()
 {
     std::string input;
