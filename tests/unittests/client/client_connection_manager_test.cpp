@@ -204,9 +204,9 @@ class MockServer {
 
         while (m_running) {
             std::vector<uint8_t> request_data;
-            NetworkError receive_result =
+            NetworkResult receive_result =
                 receive_prefixed_data(sock, request_data);
-            if (receive_result != NetworkError::SUCCESS) {
+            if (receive_result != NetworkResult::SUCCESS) {
                 if (m_running) {
                     std::cerr << "MockServer: Failed to receive request data "
                                  "or client disconnected."
@@ -240,11 +240,11 @@ class MockServer {
             std::vector<uint8_t> response_data =
                 serialize_response(response_to_send);
 
-            NetworkError send_result = send_prefixed_data(sock, response_data);
-            if (send_result != NetworkError::SUCCESS) {
+            NetworkResult send_result = send_prefixed_data(sock, response_data);
+            if (send_result != NetworkResult::SUCCESS) {
                 std::cerr << "MockServer: Failed to send response data."
                           << std::endl;
-                break; // Error sending
+                break;
             }
             std::cout << "MockServer sent response." << std::endl;
 
@@ -264,42 +264,42 @@ class MockServer {
         common::crypto::CryptoManager crypto_manager;
 
         // Generate ECDH keypair for the server
-        auto [private_key, public_key, keygen_error] =
+        auto [private_key, public_key, keygen_result] =
             crypto_manager.generate_ecdh_keypair();
-        if (keygen_error != common::crypto::ECDHError::SUCCESS) {
+        if (keygen_result != common::crypto::ECDHResult::SUCCESS) {
             std::cerr << "Failed to generate server ECDH keypair" << std::endl;
             return false;
         }
 
         // Receive the client's public key size
         std::vector<uint8_t> client_public_key;
-        NetworkError recv_result =
+        NetworkResult recv_result =
             receive_prefixed_data(sock, client_public_key);
-        if (recv_result != NetworkError::SUCCESS) {
+        if (recv_result != NetworkResult::SUCCESS) {
             std::cerr << "Failed to receive client public key" << std::endl;
             return false;
         }
 
         // Send our public key to the client
-        NetworkError send_result = send_prefixed_data(sock, public_key);
-        if (send_result != NetworkError::SUCCESS) {
+        NetworkResult send_result = send_prefixed_data(sock, public_key);
+        if (send_result != NetworkResult::SUCCESS) {
             std::cerr << "Failed to send server public key" << std::endl;
             return false;
         }
 
         // Compute the shared secret
-        auto [shared_secret, ss_error] =
+        auto [shared_secret, ss_result] =
             crypto_manager.compute_ecdh_shared_secret(private_key,
                                                       client_public_key);
-        if (ss_error != common::crypto::ECDHError::SUCCESS) {
+        if (ss_result != common::crypto::ECDHResult::SUCCESS) {
             std::cerr << "Failed to compute shared secret" << std::endl;
             return false;
         }
 
         // Derive the encryption key
-        auto [derived_key, key_derive_error] =
+        auto [derived_key, key_derive_result] =
             crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
-        if (key_derive_error != common::crypto::ECDHError::SUCCESS) {
+        if (key_derive_result != common::crypto::ECDHResult::SUCCESS) {
             std::cerr << "Failed to derive key from shared secret" << std::endl;
             return false;
         }

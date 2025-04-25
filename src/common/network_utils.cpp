@@ -13,10 +13,10 @@ namespace fenris {
 namespace common {
 namespace network {
 
-NetworkError send_data(uint32_t fd,
-                       const std::vector<uint8_t> &data,
-                       uint32_t len,
-                       bool non_blocking_mode)
+NetworkResult send_data(uint32_t fd,
+                        const std::vector<uint8_t> &data,
+                        uint32_t len,
+                        bool non_blocking_mode)
 {
     size_t total_sent = 0;
     while (total_sent < len) {
@@ -32,17 +32,17 @@ NetworkError send_data(uint32_t fd,
             }
             // For blocking sockets or other errors, report failure
             std::cerr << "Error sending data: " << strerror(errno) << std::endl;
-            return NetworkError::SEND_ERROR;
+            return NetworkResult::SEND_ERROR;
         }
         total_sent += static_cast<size_t>(sent);
     }
-    return NetworkError::SUCCESS;
+    return NetworkResult::SUCCESS;
 }
 
-NetworkError receive_data(uint32_t fd,
-                          std::vector<uint8_t> &buf,
-                          uint32_t len,
-                          bool non_blocking_mode)
+NetworkResult receive_data(uint32_t fd,
+                           std::vector<uint8_t> &buf,
+                           uint32_t len,
+                           bool non_blocking_mode)
 {
     size_t total_received = 0;
     while (total_received < len) {
@@ -59,17 +59,17 @@ NetworkError receive_data(uint32_t fd,
             }
             // For blocking sockets, 0 means disconnected, -1 means error
             if (received == 0) {
-                return NetworkError::DISCONNECTED;
+                return NetworkResult::DISCONNECTED;
             } else {
-                return NetworkError::RECEIVE_ERROR;
+                return NetworkResult::RECEIVE_ERROR;
             }
         }
         total_received += static_cast<size_t>(received);
     }
-    return NetworkError::SUCCESS;
+    return NetworkResult::SUCCESS;
 }
 
-NetworkError send_size(uint32_t fd, uint32_t size, bool non_blocking_mode)
+NetworkResult send_size(uint32_t fd, uint32_t size, bool non_blocking_mode)
 {
     uint32_t size_net = htonl(size);
     size_t total_sent = 0;
@@ -88,14 +88,14 @@ NetworkError send_size(uint32_t fd, uint32_t size, bool non_blocking_mode)
                     std::chrono::milliseconds(DELAY)); // Small delay
                 continue;
             }
-            return NetworkError::SEND_ERROR;
+            return NetworkResult::SEND_ERROR;
         }
         total_sent += static_cast<size_t>(sent);
     }
-    return NetworkError::SUCCESS;
+    return NetworkResult::SUCCESS;
 }
 
-NetworkError receive_size(uint32_t fd, uint32_t &size, bool non_blocking_mode)
+NetworkResult receive_size(uint32_t fd, uint32_t &size, bool non_blocking_mode)
 {
     uint32_t size_net;
     size_t total_received = 0;
@@ -115,63 +115,63 @@ NetworkError receive_size(uint32_t fd, uint32_t &size, bool non_blocking_mode)
                 continue;
             }
             if (received == 0) {
-                return NetworkError::DISCONNECTED;
+                return NetworkResult::DISCONNECTED;
             }
-            return NetworkError::RECEIVE_ERROR;
+            return NetworkResult::RECEIVE_ERROR;
         }
         total_received += static_cast<size_t>(received);
     }
     size = ntohl(size_net);
-    return NetworkError::SUCCESS;
+    return NetworkResult::SUCCESS;
 }
 
-NetworkError send_prefixed_data(int socket,
-                                const std::vector<uint8_t> &data,
-                                bool non_blocking_mode)
+NetworkResult send_prefixed_data(uint32_t socket,
+                                 const std::vector<uint8_t> &data,
+                                 bool non_blocking_mode)
 {
-    NetworkError err;
+    NetworkResult result;
 
-    err = send_size(socket,
-                    static_cast<uint32_t>(data.size()),
-                    non_blocking_mode);
-    if (err != NetworkError::SUCCESS) {
-        return err;
+    result = send_size(socket,
+                       static_cast<uint32_t>(data.size()),
+                       non_blocking_mode);
+    if (result != NetworkResult::SUCCESS) {
+        return result;
     }
 
-    err = send_data(socket,
-                    data,
-                    static_cast<uint32_t>(data.size()),
-                    non_blocking_mode);
-    if (err != NetworkError::SUCCESS) {
-        return err;
+    result = send_data(socket,
+                       data,
+                       static_cast<uint32_t>(data.size()),
+                       non_blocking_mode);
+    if (result != NetworkResult::SUCCESS) {
+        return result;
     }
 
-    return NetworkError::SUCCESS;
+    return NetworkResult::SUCCESS;
 }
 
-NetworkError receive_prefixed_data(int socket,
-                                   std::vector<uint8_t> &data,
-                                   bool non_blocking_mode)
+NetworkResult receive_prefixed_data(uint32_t socket,
+                                    std::vector<uint8_t> &data,
+                                    bool non_blocking_mode)
 {
-    NetworkError err;
+    NetworkResult result;
     uint32_t size = 0;
 
-    err = receive_size(socket, size, non_blocking_mode);
-    if (err != NetworkError::SUCCESS) {
-        return err;
+    result = receive_size(socket, size, non_blocking_mode);
+    if (result != NetworkResult::SUCCESS) {
+        return result;
     }
 
     try {
         data.resize(size);
     } catch (const std::bad_alloc &) {
-        return NetworkError::ALLOCATION_ERROR;
+        return NetworkResult::ALLOCATION_ERROR;
     }
-    err = receive_data(socket, data, size, non_blocking_mode);
-    if (err != NetworkError::SUCCESS) {
-        return err;
+    result = receive_data(socket, data, size, non_blocking_mode);
+    if (result != NetworkResult::SUCCESS) {
+        return result;
     }
 
-    return NetworkError::SUCCESS;
+    return NetworkResult::SUCCESS;
 }
 
 } // namespace network

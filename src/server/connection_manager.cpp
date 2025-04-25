@@ -260,44 +260,44 @@ bool ConnectionManager::perform_key_exchange(
     uint32_t client_socket,
     std::vector<uint8_t> &encryption_key)
 {
-    auto [private_key, public_key, keygen_error] =
+    auto [private_key, public_key, keygen_result] =
         m_crypto_manager->generate_ecdh_keypair();
-    if (keygen_error != crypto::ECDHError::SUCCESS) {
+    if (keygen_result != crypto::ECDHResult::SUCCESS) {
         m_logger->error("Failed to generate ECDH key pair");
         return false;
     }
 
     // Receive client's public key
     std::vector<uint8_t> server_public_key;
-    NetworkError recv_result = receive_prefixed_data(client_socket,
-                                                     server_public_key,
-                                                     m_non_blocking_mode);
-    if (recv_result != NetworkError::SUCCESS) {
+    NetworkResult recv_result = receive_prefixed_data(client_socket,
+                                                      server_public_key,
+                                                      m_non_blocking_mode);
+    if (recv_result != NetworkResult::SUCCESS) {
         m_logger->error("Failed to receive client public key");
         return false;
     }
 
     // Send public key to client
-    NetworkError send_result =
+    NetworkResult send_result =
         send_prefixed_data(client_socket, public_key, m_non_blocking_mode);
-    if (send_result != NetworkError::SUCCESS) {
+    if (send_result != NetworkResult::SUCCESS) {
         m_logger->error("Failed to send public key");
         return false;
     }
 
     // Compute shared secret
-    auto [shared_secret, ss_error] =
+    auto [shared_secret, ss_result] =
         m_crypto_manager->compute_ecdh_shared_secret(private_key,
                                                      server_public_key);
-    if (ss_error != crypto::ECDHError::SUCCESS) {
+    if (ss_result != crypto::ECDHResult::SUCCESS) {
         m_logger->error("Failed to compute ECDH shared secret");
         return false;
     }
 
     // Derive encryption key from shared secret
-    auto [derived_key, key_derive_error] =
+    auto [derived_key, key_derive_result] =
         m_crypto_manager->derive_key_from_shared_secret(shared_secret, 16);
-    if (key_derive_error != crypto::ECDHError::SUCCESS) {
+    if (key_derive_result != crypto::ECDHResult::SUCCESS) {
         m_logger->error("Failed to derive encryption key");
         return false;
     }
@@ -333,10 +333,10 @@ void ConnectionManager::handle_client(uint32_t client_socket,
     while (m_running && keep_connection) {
 
         std::vector<uint8_t> request_data;
-        NetworkError recv_result = receive_prefixed_data(client_socket,
-                                                         request_data,
-                                                         m_non_blocking_mode);
-        if (recv_result != NetworkError::SUCCESS) {
+        NetworkResult recv_result = receive_prefixed_data(client_socket,
+                                                          request_data,
+                                                          m_non_blocking_mode);
+        if (recv_result != NetworkResult::SUCCESS) {
             m_logger->error("Failed to receive request data from client");
             break;
         }
@@ -359,10 +359,10 @@ void ConnectionManager::handle_client(uint32_t client_socket,
             break;
         }
 
-        NetworkError send_result = send_prefixed_data(client_socket,
-                                                      response_data,
-                                                      m_non_blocking_mode);
-        if (send_result != NetworkError::SUCCESS) {
+        NetworkResult send_result = send_prefixed_data(client_socket,
+                                                       response_data,
+                                                       m_non_blocking_mode);
+        if (send_result != NetworkResult::SUCCESS) {
             m_logger->error("Failed to send response data to client");
             break;
         }

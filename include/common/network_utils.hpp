@@ -13,10 +13,10 @@ namespace network {
 static const uint32_t DELAY = 100;
 
 /**
- * @enum NetworkError
+ * @enum NetworkResult
  * @brief Represents different kinds of network operation errors
  */
-enum class NetworkError {
+enum class NetworkResult {
     SUCCESS,            // Operation completed successfully
     DISCONNECTED,       // Peer disconnected
     CONNECTION_REFUSED, // Connection was refused by peer
@@ -31,9 +31,9 @@ enum class NetworkError {
  * @param socket The socket to send the data to.
  * @param size The size of the data to be sent.
  * @param non_blocking_mode True if the socket is in non-blocking mode, false
- * @return NetworkError indicating success or failure type
+ * @return NetworkResult indicating success or failure type
  */
-NetworkError
+NetworkResult
 send_size(uint32_t socket, uint32_t size, bool non_blocking_mode = false);
 
 /**
@@ -41,9 +41,9 @@ send_size(uint32_t socket, uint32_t size, bool non_blocking_mode = false);
  * @param socket The socket to receive the data from.
  * @param size The size of the data to be received.
  * @param non_blocking_mode True if the socket is in non-blocking mode, false
- * @return NetworkError indicating success or failure type
+ * @return NetworkResult indicating success or failure type
  */
-NetworkError
+NetworkResult
 receive_size(uint32_t socket, uint32_t &size, bool non_blocking_mode = false);
 
 /**
@@ -52,12 +52,12 @@ receive_size(uint32_t socket, uint32_t &size, bool non_blocking_mode = false);
  * @param data The data to be sent.
  * @param size The size of the data to be sent.
  * @param non_blocking_mode True if the socket is in non-blocking mode, false
- * @return NetworkError indicating success or failure type
+ * @return NetworkResult indicating success or failure type
  */
-NetworkError send_data(uint32_t socket,
-                       const std::vector<uint8_t> &data,
-                       uint32_t size,
-                       bool non_blocking_mode = false);
+NetworkResult send_data(uint32_t socket,
+                        const std::vector<uint8_t> &data,
+                        uint32_t size,
+                        bool non_blocking_mode = false);
 
 /**
  * @brief Receives data over the socket.
@@ -66,34 +66,34 @@ NetworkError send_data(uint32_t socket,
  * @param size The size of the data to be received.
  * @param non_blocking_mode True if the socket is in non-blocking mode, false
  * otherwise.
- * @return NetworkError indicating success or failure type
+ * @return NetworkResult indicating success or failure type
  */
-NetworkError receive_data(uint32_t socket,
-                          std::vector<uint8_t> &data,
-                          uint32_t size,
-                          bool non_blocking_mode = false);
+NetworkResult receive_data(uint32_t socket,
+                           std::vector<uint8_t> &data,
+                           uint32_t size,
+                           bool non_blocking_mode = false);
 
 /**
  * @brief Sends data with size prefix over socket.
  * @param socket The socket to send the data to.
  * @param data The data to be sent.
  * @param non_blocking_mode True if the socket is in non-blocking mode, false
- * @return NetworkError indicating success or failure type
+ * @return NetworkResult indicating success or failure type
  */
-NetworkError send_prefixed_data(int socket,
-                                const std::vector<uint8_t> &data,
-                                bool non_blocking_mode = false);
+NetworkResult send_prefixed_data(uint32_t socket,
+                                 const std::vector<uint8_t> &data,
+                                 bool non_blocking_mode = false);
 
 /**
  * @brief Receives data with size prefix from socket.
  * @param socket The socket to receive the data from.
  * @param data The data to be received.
  * @param non_blocking_mode True if the socket is in non-blocking mode, false
- * @return NetworkError indicating success or failure type
+ * @return NetworkResult indicating success or failure type
  */
-NetworkError receive_prefixed_data(int socket,
-                                   std::vector<uint8_t> &data,
-                                   bool non_blocking_mode = false);
+NetworkResult receive_prefixed_data(uint32_t socket,
+                                    std::vector<uint8_t> &data,
+                                    bool non_blocking_mode = false);
 
 } // namespace network
 } // namespace common

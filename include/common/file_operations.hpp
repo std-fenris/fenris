@@ -13,9 +13,9 @@ namespace fenris {
 namespace common {
 
 /**
- * Error codes for file operations
+ * Result of file operations
  */
-enum class FileError {
+enum class FileOperationResult {
     SUCCESS = 0,
     FILE_NOT_FOUND,
     PERMISSION_DENIED,
@@ -32,9 +32,9 @@ enum class FileError {
  * Read data from a file
  *
  * @param filepath Path to the file to read
- * @return Pair of (file content as vector of bytes, error code)
+ * @return Pair of (file content as vector of bytes, FileOperationResult)
  */
-std::pair<std::vector<uint8_t>, FileError>
+std::pair<std::vector<uint8_t>, FileOperationResult>
 read_file(const std::string &filepath);
 
 /**
@@ -43,44 +43,44 @@ read_file(const std::string &filepath);
  *
  * @param filepath Path to the file to write
  * @param data Data to write to the file
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError write_file(const std::string &filepath,
-                     const std::vector<uint8_t> &data);
+FileOperationResult write_file(const std::string &filepath,
+                               const std::vector<uint8_t> &data);
 
 /**
  * Append data to a file (the file must exist)
  *
  * @param filepath Path to the file to append to
  * @param data Data to append to the file
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError append_file(const std::string &filepath,
-                      const std::vector<uint8_t> &data);
+FileOperationResult append_file(const std::string &filepath,
+                                const std::vector<uint8_t> &data);
 
 /**
  * Create a new empty file
  *
  * @param filepath Path of the file to create
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError create_file(const std::string &filepath);
+FileOperationResult create_file(const std::string &filepath);
 
 /**
  * Delete a file
  *
  * @param filepath Path of the file to delete
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError delete_file(const std::string &filepath);
+FileOperationResult delete_file(const std::string &filepath);
 
 /**
  * Get file information (size, modification time, etc.)
  *
  * @param filepath Path to the file
- * @return Pair of (filesystem::file_status, error code)
+ * @return Pair of (filesystem::file_status, FileOperationResult)
  */
-std::pair<std::filesystem::file_status, FileError>
+std::pair<std::filesystem::file_status, FileOperationResult>
 get_file_info(const std::string &filepath);
 
 /**
@@ -95,17 +95,17 @@ bool file_exists(const std::string &filepath);
  * Create a directory
  *
  * @param dirpath Path of the directory to create
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError create_directory(const std::string &dirpath);
+FileOperationResult create_directory(const std::string &dirpath);
 
 /**
  * Create a directory and all parent directories if they don't exist
  *
  * @param dirpath Path of the directory to create
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError create_directories(const std::string &dirpath);
+FileOperationResult create_directories(const std::string &dirpath);
 
 /**
  * Delete a directory
@@ -113,67 +113,72 @@ FileError create_directories(const std::string &dirpath);
  * @param dirpath Path of the directory to delete
  * @param recursive If true, delete all contents recursively; if false, fail if
  * directory is not empty
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError delete_directory(const std::string &dirpath, bool recursive = false);
+FileOperationResult delete_directory(const std::string &dirpath,
+                                     bool recursive = false);
 
 /**
  * List contents of a directory
  *
  * @param dirpath Path of the directory to list
- * @return Pair of (vector of entry names, error code)
+ * @return Pair of (vector of entry names, FileOperationResult)
  */
-std::pair<std::vector<std::string>, FileError>
+std::pair<std::vector<std::string>, FileOperationResult>
 list_directory(const std::string &dirpath);
 
 /**
  * Change the current working directory
  *
  * @param dirpath Path to change to
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError change_directory(const std::string &dirpath);
+FileOperationResult change_directory(const std::string &dirpath);
 
 /**
  * Get the current working directory
  *
- * @return Pair of (current working directory path, error code)
+ * @return Pair of (current working directory path, FileOperationResult)
  */
-std::pair<std::string, FileError> get_current_directory();
+std::pair<std::string, FileOperationResult> get_current_directory();
 
 /**
  * Rename a file or directory
  *
  * @param oldpath Current path
  * @param newpath New path
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError rename_path(const std::string &oldpath, const std::string &newpath);
+FileOperationResult rename_path(const std::string &oldpath,
+                                const std::string &newpath);
 
 /**
  * Copy a file
  *
  * @param source Source file path
  * @param destination Destination file path
- * @return Error code indicating success or failure
+ * @return FileOperationResult indicating success or failure
  */
-FileError copy_file(const std::string &source, const std::string &destination);
+FileOperationResult copy_file(const std::string &source,
+                              const std::string &destination);
 
 /**
  * Get file size
  *
  * @param filepath Path to the file
- * @return Pair of (file size in bytes, error code)
+ * @return Pair of (file size in bytes, FileOperationResult)
  */
-std::pair<uintmax_t, FileError> get_file_size(const std::string &filepath);
+std::pair<uintmax_t, FileOperationResult>
+get_file_size(const std::string &filepath);
 
 /**
- * Convert system_error to FileError
+ * Convert system_error to FileOperationResult
  *
  * @param ec System error code
- * @return Equivalent FileError
+ * @return Equivalent FileOperationResult
  */
-FileError system_error_to_file_error(const std::error_code &ec);
+FileOperationResult
+system_error_to_file_operation_result(const std::error_code &ec);
 
 } // namespace common
 } // namespace fenris
