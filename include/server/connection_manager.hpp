@@ -19,6 +19,15 @@
 namespace fenris {
 namespace server {
 
+struct ClientInfo {
+    uint32_t client_id;
+    uint32_t socket;
+    std::string address;
+    std::string port;
+    std::string current_directory;
+    std::vector<uint8_t> encryption_key;
+};
+
 class ClientHandler;
 
 /**
@@ -74,6 +83,32 @@ class ConnectionManager {
      */
     size_t get_active_client_count() const;
 
+    /**
+     * @brief Send a response to a client
+     * @param client_info ClientInfo struct containing client connection
+     * information
+     * @param response The response to send
+     * @return true if send successful, false otherwise
+     *
+     * This method encrypts the response using the client's key
+     * and a randomly generated IV, prefixing the IV to the message
+     */
+    bool send_response(const ClientInfo &client_info,
+                       const fenris::Response &response);
+
+    /**
+     * @brief Receive a request from a client
+     * @param client_info ClientInfo struct containing client connection
+     * information
+     * @return Optional containing the request if successfully received and
+     * decrypted
+     *
+     * This method extracts the IV from the first part of the message
+     * and uses it to decrypt the request data
+     */
+    std::optional<fenris::Request>
+    receive_request(const ClientInfo &client_info);
+
   private:
     /**
      * @brief Listen for incoming connections
@@ -115,7 +150,7 @@ class ConnectionManager {
     std::atomic<bool> m_running{false};
     std::thread m_listen_thread;
     bool m_non_blocking_mode;
-    std::unique_ptr<common::crypto::ICryptoManager> m_crypto_manager;
+    common::crypto::CryptoManager m_crypto_manager;
     common::Logger m_logger;
 
     // Client management

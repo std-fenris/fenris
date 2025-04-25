@@ -62,8 +62,8 @@ TEST(EncryptionTest, EmptyInput)
     auto crypto_manager = CryptoManager();
 
     std::vector<uint8_t> empty;
-    std::vector<uint8_t> key(32, 0); // 256-bit key
-    std::vector<uint8_t> iv(12, 0);  // 96-bit IV
+    std::vector<uint8_t> key(AES_GCM_KEY_SIZE, 0);
+    std::vector<uint8_t> iv(AES_GCM_IV_SIZE, 0);
 
     // Encrypt empty data
     auto [ciphertext, encrypt_result] =
@@ -88,7 +88,7 @@ TEST(EncryptionTest, InvalidKeySize)
 
     // Create an invalid key (20 bytes - not a valid AES key size)
     std::vector<uint8_t> invalid_key(20, 0);
-    std::vector<uint8_t> iv(12, 0);
+    std::vector<uint8_t> iv(AES_GCM_IV_SIZE, 0);
 
     // Encrypt with invalid key
     auto [ciphertext, encrypt_result] =
@@ -97,7 +97,7 @@ TEST(EncryptionTest, InvalidKeySize)
     EXPECT_TRUE(ciphertext.empty());
 
     // Create a valid key and encrypt for testing decryption
-    std::vector<uint8_t> valid_key(32, 0);
+    std::vector<uint8_t> valid_key(AES_GCM_KEY_SIZE, 0);
     auto [valid_ciphertext, _] =
         crypto_manager.encrypt_data(plaintext, valid_key, iv);
 
@@ -116,7 +116,8 @@ TEST(EncryptionTest, InvalidIVSize)
     std::string message = "Test message";
     std::vector<uint8_t> plaintext(message.begin(), message.end());
 
-    std::vector<uint8_t> key(32, 0); // Valid 256-bit key
+    std::vector<uint8_t> key(AES_GCM_KEY_SIZE,
+                             0); // Valid 256-bit key
 
     // Create an invalid IV (16 bytes - not the recommended 12 bytes for GCM)
     std::vector<uint8_t> invalid_iv(16, 0);
@@ -128,7 +129,7 @@ TEST(EncryptionTest, InvalidIVSize)
     EXPECT_TRUE(ciphertext.empty());
 
     // Create a valid IV and encrypt for testing decryption
-    std::vector<uint8_t> valid_iv(12, 0);
+    std::vector<uint8_t> valid_iv(AES_GCM_IV_SIZE, 0);
     auto [valid_ciphertext, _] =
         crypto_manager.encrypt_data(plaintext, key, valid_iv);
 
@@ -147,8 +148,8 @@ TEST(EncryptionTest, TamperedCiphertext)
     std::string message = "This is a test message for integrity check";
     std::vector<uint8_t> plaintext(message.begin(), message.end());
 
-    std::vector<uint8_t> key(32, 0); // 256-bit key
-    std::vector<uint8_t> iv(12, 0);  // 96-bit IV
+    std::vector<uint8_t> key(AES_GCM_KEY_SIZE, 0); // 256-bit key
+    std::vector<uint8_t> iv(AES_GCM_IV_SIZE, 0);   // 96-bit IV
 
     // Encrypt the data
     auto [ciphertext, encrypt_result] =
@@ -183,8 +184,8 @@ TEST(EncryptionTest, LargeData)
     }
 
     // Create key and IV
-    std::vector<uint8_t> key(32, 0); // 256-bit key
-    std::vector<uint8_t> iv(12, 0);  // 96-bit IV
+    std::vector<uint8_t> key(AES_GCM_KEY_SIZE, 0); // 256-bit key
+    std::vector<uint8_t> iv(AES_GCM_IV_SIZE, 0);   // 96-bit IV
 
     // Fill with some random data
     for (size_t i = 0; i < key.size(); i++) {
@@ -218,7 +219,7 @@ TEST(EncryptionTest, DifferentKeySizes)
 
     std::string message = "Testing different key sizes";
     std::vector<uint8_t> plaintext(message.begin(), message.end());
-    std::vector<uint8_t> iv(12, 0);
+    std::vector<uint8_t> iv(AES_GCM_IV_SIZE, 0);
 
     // Test AES-128 (16-byte key)
     {

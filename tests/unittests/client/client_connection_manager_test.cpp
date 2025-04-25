@@ -146,11 +146,6 @@ class MockServer {
         m_next_response = response;
     }
 
-    const std::vector<uint8_t> &get_encryption_key() const
-    {
-        return m_encryption_key;
-    }
-
   private:
     void run()
     {
@@ -192,10 +187,12 @@ class MockServer {
         std::cout << "MockServer thread exiting." << std::endl;
     }
 
-    void handle_client(int sock)
+    void handle_client(uint32_t socket)
     {
         // First handle key exchange
-        if (!perform_key_exchange(sock)) {
+        std::vector<uint8_t> encryption_key;
+
+        if (!perform_key_exchange(socket, encryption_key)) {
             std::cerr << "MockServer: Key exchange failed" << std::endl;
             return;
         }
@@ -203,19 +200,15 @@ class MockServer {
         std::cout << "MockServer: Key exchange successful" << std::endl;
 
         while (m_running) {
-            std::vector<uint8_t> request_data;
-            NetworkResult receive_result =
-                receive_prefixed_data(sock, request_data);
-            if (receive_result != NetworkResult::SUCCESS) {
-                if (m_running) {
-                    std::cerr << "MockServer: Failed to receive request data "
-                                 "or client disconnected."
-                              << std::endl;
-                }
+            auto request_opt = receive_request(socket, encryption_key);
+            if (!request_opt.has_value()) {
+                std::cerr << "MockServer: Failed to receive request."
+                          << std::endl;
                 break;
             }
 
-            fenris::Request request = deserialize_request(request_data);
+            const fenris::Request &request = request_opt.value();
+
             {
                 std::lock_guard<std::mutex> lock(m_requests_mutex);
                 m_received_requests.push_back(request);
@@ -230,23 +223,17 @@ class MockServer {
                     response_to_send = m_next_response;
                     m_next_response.Clear();
                 } else {
-
                     response_to_send.set_success(true);
                     response_to_send.set_type(fenris::ResponseType::PONG);
                     response_to_send.set_data("PONG");
                 }
             }
 
-            std::vector<uint8_t> response_data =
-                serialize_response(response_to_send);
-
-            NetworkResult send_result = send_prefixed_data(sock, response_data);
-            if (send_result != NetworkResult::SUCCESS) {
-                std::cerr << "MockServer: Failed to send response data."
+            if (!send_response(socket, encryption_key, response_to_send)) {
+                std::cerr << "MockServer: Failed to send response."
                           << std::endl;
                 break;
             }
-            std::cout << "MockServer sent response." << std::endl;
 
             // Special handling for TERMINATE
             if (request.command() == fenris::RequestType::TERMINATE) {
@@ -259,7 +246,8 @@ class MockServer {
     }
 
     // Perform key exchange with the client
-    bool perform_key_exchange(int sock)
+    bool perform_key_exchange(uint32_t socket,
+                              std::vector<uint8_t> &encryption_key)
     {
         common::crypto::CryptoManager crypto_manager;
 
@@ -275,17 +263,17 @@ class MockServer {
         // Receive the client's public key size
         std::vector<uint8_t> client_public_key;
         NetworkResult recv_result =
-            receive_prefixed_data(sock, client_public_key);
+            receive_prefixed_data(socket, client_public_key);
         if (recv_result != NetworkResult::SUCCESS) {
-            std::cerr << "Failed to receive client public key: "
+            std::cerr << "failed to receive client public key: "
                       << network_result_to_string(recv_result) << std::endl;
             return false;
         }
 
         // Send our public key to the client
-        NetworkResult send_result = send_prefixed_data(sock, public_key);
+        NetworkResult send_result = send_prefixed_data(socket, public_key);
         if (send_result != NetworkResult::SUCCESS) {
-            std::cerr << "Failed to send server public key: "
+            std::cerr << "failed to send server public key: "
                       << network_result_to_string(send_result) << std::endl;
             return false;
         }
@@ -295,23 +283,102 @@ class MockServer {
             crypto_manager.compute_ecdh_shared_secret(private_key,
                                                       client_public_key);
         if (ss_result != common::crypto::ECDHResult::SUCCESS) {
-            std::cerr << "Failed to compute shared secret: "
+            std::cerr << "failed to compute shared secret: "
                       << ecdh_result_to_string(ss_result) << std::endl;
             return false;
         }
 
         // Derive the encryption key
         auto [derived_key, key_derive_result] =
-            crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
+            crypto_manager.derive_key_from_shared_secret(
+                shared_secret,
+                crypto::AES_GCM_KEY_SIZE);
         if (key_derive_result != common::crypto::ECDHResult::SUCCESS) {
-            std::cerr << "Failed to derive key from shared secret: "
+            std::cerr << "failed to derive key from shared secret: "
                       << ecdh_result_to_string(key_derive_result) << std::endl;
             return false;
         }
 
-        // Store the derived key
-        m_encryption_key = derived_key;
+        encryption_key = derived_key;
         return true;
+    }
+
+    bool send_response(uint32_t socket,
+                       const std::vector<uint8_t> &encryption_key,
+                       const fenris::Response &response)
+    {
+        // Serialize the response
+        std::vector<uint8_t> serialized_response = serialize_response(response);
+
+        // Generate random IV
+        auto [iv, iv_gen_result] = m_crypto_manager.generate_random_iv();
+        if (iv_gen_result != crypto::EncryptionResult::SUCCESS) {
+            return false;
+        }
+
+        // Encrypt the serialized response using client's key and generated IV
+        auto [encrypted_response, encrypt_result] =
+            m_crypto_manager.encrypt_data(serialized_response,
+                                          encryption_key,
+                                          iv);
+        if (encrypt_result != crypto::EncryptionResult::SUCCESS) {
+            return false;
+        }
+
+        // Create the final message with IV prefixed to encrypted data
+        std::vector<uint8_t> message_with_iv;
+        message_with_iv.reserve(iv.size() + encrypted_response.size());
+        message_with_iv.insert(message_with_iv.end(), iv.begin(), iv.end());
+        message_with_iv.insert(message_with_iv.end(),
+                               encrypted_response.begin(),
+                               encrypted_response.end());
+
+        // Send the IV-prefixed encrypted response
+
+        NetworkResult send_result = send_prefixed_data(socket, message_with_iv);
+        if (send_result != NetworkResult::SUCCESS) {
+            return false;
+        }
+
+        return true;
+    }
+
+    std::optional<fenris::Request>
+    receive_request(uint32_t socket, const std::vector<uint8_t> &encryption_key)
+    {
+        // Receive encrypted data (includes IV + encrypted request)
+        std::vector<uint8_t> encrypted_data;
+        NetworkResult recv_result =
+            receive_prefixed_data(socket, encrypted_data);
+
+        if (recv_result != NetworkResult::SUCCESS) {
+            return std::nullopt;
+        }
+
+        if (encrypted_data.size() < crypto::AES_GCM_IV_SIZE) {
+            return std::nullopt;
+        }
+
+        // Extract IV from the beginning of the message
+        std::vector<uint8_t> iv(encrypted_data.begin(),
+                                encrypted_data.begin() +
+                                    crypto::AES_GCM_IV_SIZE);
+
+        // Extract the encrypted request data (after the IV)
+        std::vector<uint8_t> encrypted_request(encrypted_data.begin() +
+                                                   crypto::AES_GCM_IV_SIZE,
+                                               encrypted_data.end());
+
+        // Decrypt the request using client's key and extracted IV
+        auto [decrypted_data, decrypt_result] =
+            m_crypto_manager.decrypt_data(encrypted_request,
+                                          encryption_key,
+                                          iv);
+        if (decrypt_result != crypto::EncryptionResult::SUCCESS) {
+            return std::nullopt;
+        }
+
+        return deserialize_request(decrypted_data);
     }
 
     int m_port;
@@ -326,9 +393,7 @@ class MockServer {
 
     fenris::Response m_next_response;
     std::mutex m_response_mutex;
-
-    // Store encryption key derived from key exchange
-    std::vector<uint8_t> m_encryption_key;
+    crypto::CryptoManager m_crypto_manager;
 };
 
 class ClientConnectionManagerTest : public ::testing::Test {
@@ -480,32 +545,6 @@ TEST_F(ClientConnectionManagerTest, SendAndReceiveMultiple)
     ASSERT_TRUE(MessageDifferencer::Equals(received_requests[0], ping_request));
     ASSERT_TRUE(MessageDifferencer::Equals(received_requests[1], read_request));
 
-    m_connection_manager->disconnect();
-}
-
-TEST_F(ClientConnectionManagerTest, ECDHKeyExchangeProducesMatchingKeys)
-{
-    // Connect to the mock server
-    ASSERT_TRUE(m_connection_manager->connect());
-    ASSERT_TRUE(m_connection_manager->is_connected());
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    const std::vector<uint8_t> &client_key =
-        m_connection_manager->get_encryption_key();
-    ASSERT_FALSE(client_key.empty()) << "Client encryption key is empty";
-
-    const std::vector<uint8_t> &server_key =
-        m_mock_server->get_encryption_key();
-    ASSERT_FALSE(server_key.empty()) << "Server encryption key is empty";
-
-    ASSERT_EQ(client_key.size(), server_key.size()) << "Key sizes don't match";
-    for (size_t i = 0; i < client_key.size(); i++) {
-        ASSERT_EQ(client_key[i], server_key[i])
-            << "Key mismatch at index " << i;
-    }
-
-    // Clean up
     m_connection_manager->disconnect();
 }
 

@@ -73,13 +73,19 @@ class ConnectionManager {
      * @brief Send a request to the server
      * @param request The request to send
      * @return true if send successful, false otherwise
+     *
+     * This method encrypts the request using the server's key
+     * and a randomly generated IV, prefixing the IV to the message
      */
     bool send_request(const fenris::Request &request);
 
     /**
      * @brief Receive a response from the server
-     * @return The deserialized Protocol Buffer response, or nullopt if no
-     * response
+     * @return Optional containing the response if successfully received and
+     * decrypted
+     *
+     * This method extracts the IV from the first part of the message
+     * and uses it to decrypt the response data
      */
     std::optional<fenris::Response> receive_response();
 
@@ -110,7 +116,7 @@ class ConnectionManager {
     std::atomic<bool> m_connected{false};
     std::mutex m_socket_mutex;
     ServerInfo m_server_info;
-    std::unique_ptr<common::crypto::ICryptoManager> m_crypto_manager;
+    common::crypto::CryptoManager m_crypto_manager;
     common::Logger m_logger;
 };
 
