@@ -1,7 +1,6 @@
 #include "client/request_manager.hpp"
 #include "common/request.hpp"
 #include <fstream>
-#include <iostream>
 #include <sstream>
 
 namespace fenris {
@@ -12,7 +11,7 @@ RequestManager::generate_request(const std::vector<std::string> &args)
 {
 
     if (args.empty()) {
-        std::cerr << "Error: No command provided" << std::endl;
+        m_logger->error("no command provided");
         return std::nullopt;
     }
 
@@ -22,7 +21,7 @@ RequestManager::generate_request(const std::vector<std::string> &args)
     // Find the command in our map
     auto cmd_iter = m_command_map.find(cmd);
     if (cmd_iter == m_command_map.end()) {
-        std::cerr << "Error: Unknown command '" << cmd << "'" << std::endl;
+        m_logger->error("unknown command '{}'", cmd);
         return std::nullopt;
     }
 
@@ -37,47 +36,45 @@ RequestManager::generate_request(const std::vector<std::string> &args)
 
     case fenris::RequestType::CREATE_FILE:
         if (args.size() < 2) {
-            std::cerr << "Error: create command requires a filename"
-                      << std::endl;
+            m_logger->error("create command requires a filename");
             return std::nullopt;
         }
         return create_file_request(args, 1);
 
     case fenris::RequestType::READ_FILE:
         if (args.size() < 2) {
-            std::cerr << "Error: read command requires a filename" << std::endl;
+            m_logger->error("read command requires a filename");
             return std::nullopt;
         }
         return read_file_request(args, 1);
 
     case fenris::RequestType::WRITE_FILE:
-        if (args.size() < 3) {
-            std::cerr << "Error: write command requires a filename and content"
-                      << std::endl;
+        if (args.size() < 3 && !(args.size() == 4 && args[1] == "-f")) {
+            m_logger->error("write command requires a filename and content (or "
+                            "-f <filepath>)");
             return std::nullopt;
         }
         return write_file_request(args, 1);
 
     case fenris::RequestType::APPEND_FILE:
-        if (args.size() < 3) {
-            std::cerr << "Error: append command requires a filename and content"
-                      << std::endl;
+        if (args.size() < 3 && !(args.size() == 4 && args[1] == "-f")) {
+            m_logger->error("append command requires a filename and content "
+                            "(or -f <filepath>)");
             return std::nullopt;
         }
         return append_file_request(args, 1);
 
     case fenris::RequestType::DELETE_FILE:
-        if (args.size() < 2) {
-            std::cerr << "Error: delete_file command requires a filename"
-                      << std::endl;
+        if (args.size() < 2 && !(args.size() == 3 && args[1] == "-f")) {
+            m_logger->error("delete_file command requires a filename");
             return std::nullopt;
         }
         request.set_filename(args[1]);
         break;
 
     case fenris::RequestType::INFO_FILE:
-        if (args.size() < 2) {
-            std::cerr << "Error: info command requires a filename" << std::endl;
+        if (args.size() < 2 && !(args.size() == 3 && args[1] == "-f")) {
+            m_logger->error("info command requires a filename");
             return std::nullopt;
         }
         request.set_filename(args[1]);
@@ -85,8 +82,7 @@ RequestManager::generate_request(const std::vector<std::string> &args)
 
     case fenris::RequestType::CREATE_DIR:
         if (args.size() < 2) {
-            std::cerr << "Error: mkdir command requires a directory name"
-                      << std::endl;
+            m_logger->error("mkdir command requires a directory name");
             return std::nullopt;
         }
         request.set_filename(args[1]);
@@ -102,8 +98,7 @@ RequestManager::generate_request(const std::vector<std::string> &args)
         break;
     case fenris::RequestType::CHANGE_DIR:
         if (args.size() < 2) {
-            std::cerr << "Error: cd command requires a directory name"
-                      << std::endl;
+            m_logger->error("cd command requires a directory name");
             return std::nullopt;
         }
         request.set_filename(args[1]);
@@ -111,8 +106,7 @@ RequestManager::generate_request(const std::vector<std::string> &args)
 
     case fenris::RequestType::DELETE_DIR:
         if (args.size() < 2) {
-            std::cerr << "Error: rmdir command requires a directory name"
-                      << std::endl;
+            m_logger->error("rmdir command requires a directory name");
             return std::nullopt;
         }
         request.set_filename(args[1]);
@@ -123,7 +117,7 @@ RequestManager::generate_request(const std::vector<std::string> &args)
         break;
 
     default:
-        std::cerr << "Error: Unhandled command type" << std::endl;
+        m_logger->error("unhandled command type");
         return std::nullopt;
     }
 
@@ -146,16 +140,22 @@ RequestManager::create_file_request(const std::vector<std::string> &args,
             // Read content from file
             std::ifstream file(args[start_idx + 2], std::ios::binary);
             if (!file) {
-                std::cerr << "Warning: Could not open file "
-                          << args[start_idx + 2] << std::endl;
+                m_logger->warn("could not open file '{}' for create content",
+                               args[start_idx + 2]);
             } else {
                 std::string content((std::istreambuf_iterator<char>(file)),
                                     std::istreambuf_iterator<char>());
                 request.set_data(content);
             }
         } else {
-            // Use argument as content
-            request.set_data(args[start_idx + 1]);
+            // Use argument as content (concatenate remaining args)
+            std::stringstream content;
+            for (size_t i = start_idx + 1; i < args.size(); i++) {
+                if (i > start_idx + 1)
+                    content << " ";
+                content << args[i];
+            }
+            request.set_data(content.str());
         }
     }
 
@@ -189,15 +189,15 @@ RequestManager::write_file_request(const std::vector<std::string> &args,
             // Read content from file
             std::ifstream file(args[start_idx + 2], std::ios::binary);
             if (!file) {
-                std::cerr << "Warning: Could not open file "
-                          << args[start_idx + 2] << std::endl;
+                m_logger->warn("could not open file '{}' for write content",
+                               args[start_idx + 2]);
             } else {
                 std::string content((std::istreambuf_iterator<char>(file)),
                                     std::istreambuf_iterator<char>());
                 request.set_data(content);
             }
         } else {
-            // Use argument as content
+            // Use argument as content (concatenate remaining args)
             std::stringstream content;
             for (size_t i = start_idx + 1; i < args.size(); i++) {
                 if (i > start_idx + 1)
@@ -226,15 +226,15 @@ RequestManager::append_file_request(const std::vector<std::string> &args,
             // Read content from file
             std::ifstream file(args[start_idx + 2], std::ios::binary);
             if (!file) {
-                std::cerr << "Warning: Could not open file "
-                          << args[start_idx + 2] << std::endl;
+                m_logger->warn("could not open file '{}' for append content",
+                               args[start_idx + 2]);
             } else {
                 std::string content((std::istreambuf_iterator<char>(file)),
                                     std::istreambuf_iterator<char>());
                 request.set_data(content);
             }
         } else {
-            // Use argument as content
+            // Use argument as content (concatenate remaining args)
             std::stringstream content;
             for (size_t i = start_idx + 1; i < args.size(); i++) {
                 if (i > start_idx + 1)
