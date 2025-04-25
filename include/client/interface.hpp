@@ -30,6 +30,12 @@ class ITUI {
     virtual std::string get_server_IP() = 0;
 
     /**
+     * @brief Get port number from user
+     * @return Port number as string
+     */
+    virtual std::string get_port_number() = 0;
+
+    /**
      * @brief Get command from user input
      * @return Vector of command parts
      */
@@ -79,6 +85,12 @@ class TUI : public ITUI {
      * @return IP address as string
      */
     std::string get_server_IP() override;
+
+    /**
+     * @brief Get port number from user
+     * @return Port number as string
+     */
+    std::string get_port_number() override;
 
     /**
      * @brief Get command from user input
