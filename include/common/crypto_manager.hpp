@@ -21,6 +21,7 @@ enum class EncryptionResult {
     INVALID_DATA,
     ENCRYPTION_FAILED,
     DECRYPTION_FAILED,
+    IV_GENERATION_FAILED,
 };
 
 enum class ECDHResult {
@@ -128,6 +129,14 @@ class ICryptoManager {
     derive_key_from_shared_secret(const std::vector<uint8_t> &shared_secret,
                                   size_t key_size,
                                   const std::vector<uint8_t> &context = {}) = 0;
+
+    /**
+     * @brief Generates a cryptographically secure random IV.
+     *
+     * @return A pair containing the random IV and an EncryptionResult.
+     */
+    virtual std::pair<std::vector<uint8_t>, EncryptionResult>
+    generate_random_iv() = 0;
 };
 
 /**
@@ -199,6 +208,15 @@ class CryptoManager : public ICryptoManager {
         const std::vector<uint8_t> &shared_secret,
         size_t key_size,
         const std::vector<uint8_t> &context = {}) override;
+
+    /**
+     * @brief Generates a cryptographically secure random IV for AES-GCM.
+     * @return A pair containing the random IV of AES_GCM_IV_SIZE bytes and an
+     * EncryptionResult.
+     * @see ICryptoManager::generate_random_iv
+     */
+    std::pair<std::vector<uint8_t>, EncryptionResult>
+    generate_random_iv() override;
 };
 
 } // namespace crypto

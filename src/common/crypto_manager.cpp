@@ -211,6 +211,19 @@ CryptoManager::derive_key_from_shared_secret(
     }
 }
 
+std::pair<std::vector<uint8_t>, EncryptionResult>
+CryptoManager::generate_random_iv()
+{
+    std::vector<uint8_t> iv(AES_GCM_IV_SIZE);
+    try {
+        AutoSeededRandomPool rng;
+        rng.GenerateBlock(iv.data(), iv.size());
+        return {iv, EncryptionResult::SUCCESS};
+    } catch (...) {
+        return {std::vector<uint8_t>(), EncryptionResult::IV_GENERATION_FAILED};
+    }
+}
+
 std::string encryption_result_to_string(EncryptionResult result)
 {
     switch (result) {
@@ -226,6 +239,8 @@ std::string encryption_result_to_string(EncryptionResult result)
         return "encryption operation failed";
     case EncryptionResult::DECRYPTION_FAILED:
         return "decryption operation failed";
+    case EncryptionResult::IV_GENERATION_FAILED:
+        return "IV generation failed";
     default:
         return "unrecognized encryption result";
     }
