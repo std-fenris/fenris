@@ -22,6 +22,7 @@ namespace server {
 
 using namespace common;
 using namespace common::network;
+using namespace common::crypto;
 
 ConnectionManager::ConnectionManager(const std::string &hostname,
                                      const std::string &port,
@@ -30,7 +31,7 @@ ConnectionManager::ConnectionManager(const std::string &hostname,
       m_non_blocking_mode(false)
 {
     m_logger = get_logger(logger_name);
-    m_crypto_manager = std::make_unique<common::crypto::CryptoManager>();
+    m_crypto_manager = std::make_unique<CryptoManager>();
 }
 
 ConnectionManager::~ConnectionManager()
@@ -46,13 +47,13 @@ void ConnectionManager::set_non_blocking_mode(bool enabled)
 void ConnectionManager::start()
 {
     if (m_running) {
-        m_logger->warn("Connection manager already running");
+        m_logger->warn("connection manager already running");
         return;
     }
 
     if (!m_client_handler) {
         m_logger->error(
-            "No client handler set, cannot start connection manager");
+            "no client handler set, cannot start connection manager");
         return;
     }
 
@@ -127,7 +128,7 @@ void ConnectionManager::start()
     m_listen_thread =
         std::thread(&ConnectionManager::listen_for_connection, this);
 
-    m_logger->info("Connection manager started on {}:{}", m_hostname, m_port);
+    m_logger->info("connection manager started on {}:{}", m_hostname, m_port);
 }
 
 void ConnectionManager::stop()
@@ -148,12 +149,12 @@ void ConnectionManager::stop()
             try {
                 server_addr.sin_port = htons(std::stoi(m_port));
             } catch (const std::invalid_argument &e) {
-                m_logger->error("Invalid port number: {}. Error: {}",
+                m_logger->error("invalid port number: {}. error: {}",
                                 m_port,
                                 e.what());
                 return;
             } catch (const std::out_of_range &e) {
-                m_logger->error("Port number out of range: {}. Error: {}",
+                m_logger->error("port number out of range: {}. error: {}",
                                 m_port,
                                 e.what());
                 return;
@@ -166,7 +167,7 @@ void ConnectionManager::stop()
                     (struct sockaddr *)&server_addr,
                     sizeof(server_addr));
             close(wake_socket);
-            m_logger->debug("Wakeup socket closed");
+            m_logger->debug("wakeup socket closed");
         }
     }
 
@@ -193,7 +194,7 @@ void ConnectionManager::stop()
     }
     m_client_threads.clear();
 
-    m_logger->info("Connection manager stopped");
+    m_logger->info("connection manager stopped");
 }
 
 void ConnectionManager::set_client_handler(
@@ -262,8 +263,9 @@ bool ConnectionManager::perform_key_exchange(
 {
     auto [private_key, public_key, keygen_result] =
         m_crypto_manager->generate_ecdh_keypair();
-    if (keygen_result != crypto::ECDHResult::SUCCESS) {
-        m_logger->error("Failed to generate ECDH key pair");
+    if (keygen_result != ECDHResult::SUCCESS) {
+        m_logger->error("failed to generate ECDH key pair: {}",
+                        ecdh_result_to_string(keygen_result));
         return false;
     }
 
@@ -273,7 +275,8 @@ bool ConnectionManager::perform_key_exchange(
                                                       server_public_key,
                                                       m_non_blocking_mode);
     if (recv_result != NetworkResult::SUCCESS) {
-        m_logger->error("Failed to receive client public key");
+        m_logger->error("failed to receive client public key: {}",
+                        network_result_to_string(recv_result));
         return false;
     }
 
@@ -281,7 +284,8 @@ bool ConnectionManager::perform_key_exchange(
     NetworkResult send_result =
         send_prefixed_data(client_socket, public_key, m_non_blocking_mode);
     if (send_result != NetworkResult::SUCCESS) {
-        m_logger->error("Failed to send public key");
+        m_logger->error("failed to send public key: {}",
+                        network_result_to_string(send_result));
         return false;
     }
 
@@ -289,16 +293,18 @@ bool ConnectionManager::perform_key_exchange(
     auto [shared_secret, ss_result] =
         m_crypto_manager->compute_ecdh_shared_secret(private_key,
                                                      server_public_key);
-    if (ss_result != crypto::ECDHResult::SUCCESS) {
-        m_logger->error("Failed to compute ECDH shared secret");
+    if (ss_result != ECDHResult::SUCCESS) {
+        m_logger->error("failed to compute ECDH shared secret: {}",
+                        ecdh_result_to_string(ss_result));
         return false;
     }
 
     // Derive encryption key from shared secret
     auto [derived_key, key_derive_result] =
         m_crypto_manager->derive_key_from_shared_secret(shared_secret, 16);
-    if (key_derive_result != crypto::ECDHResult::SUCCESS) {
-        m_logger->error("Failed to derive encryption key");
+    if (key_derive_result != ECDHResult::SUCCESS) {
+        m_logger->error("failed to derive encryption key: {}",
+                        ecdh_result_to_string(key_derive_result));
         return false;
     }
 
@@ -323,7 +329,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
     bool keep_connection = true;
 
     if (!perform_key_exchange(client_info.socket, client_info.encryption_key)) {
-        m_logger->error("Key exchange failed");
+        m_logger->error("key exchange failed");
         close(client_socket);
         remove_client(client_id);
         return;
@@ -337,7 +343,8 @@ void ConnectionManager::handle_client(uint32_t client_socket,
                                                           request_data,
                                                           m_non_blocking_mode);
         if (recv_result != NetworkResult::SUCCESS) {
-            m_logger->error("Failed to receive request data from client");
+            m_logger->error("failed to receive request data from client: {}",
+                            network_result_to_string(recv_result));
             break;
         }
 
@@ -345,7 +352,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
         try {
             request = deserialize_request(request_data);
         } catch (const std::exception &e) {
-            m_logger->error("Exception while parsing request: {}", e.what());
+            m_logger->error("exception while parsing request: {}", e.what());
             break;
         }
 
@@ -355,7 +362,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
 
         std::vector<uint8_t> response_data = serialize_response(response.first);
         if (response_data.empty()) {
-            m_logger->error("Failed to serialize response");
+            m_logger->error("failed to serialize response");
             break;
         }
 
@@ -363,7 +370,8 @@ void ConnectionManager::handle_client(uint32_t client_socket,
                                                        response_data,
                                                        m_non_blocking_mode);
         if (send_result != NetworkResult::SUCCESS) {
-            m_logger->error("Failed to send response data to client");
+            m_logger->error("failed to send response data to client: {}",
+                            network_result_to_string(send_result));
             break;
         }
     }

@@ -9,13 +9,13 @@ int main(int argc, char *argv[])
     config.log_file_path = "fenris_client.log";
 
     if (!fenris::common::initialize_logging(config, "fenris_client")) {
-        std::cerr << "Failed to initialize logging system" << std::endl;
+        std::cerr << "failed to initialize logging system" << std::endl;
         return 1;
     }
 
     auto logger = fenris::common::get_logger("fenris_client");
 
-    logger->info("Fenris client starting up");
-    logger->info("Fenris client shutting down");
+    logger->info("fenris client starting up");
+    logger->info("fenris client shutting down");
     return 0;
 }

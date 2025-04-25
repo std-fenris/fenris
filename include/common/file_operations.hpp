@@ -29,6 +29,14 @@ enum class FileOperationResult {
 };
 
 /**
+ * Convert FileOperationResult to string representation
+ *
+ * @param result FileOperationResult to convert
+ * @return String representation of the result
+ */
+std::string file_operation_result_to_string(FileOperationResult result);
+
+/**
  * Read data from a file
  *
  * @param filepath Path to the file to read

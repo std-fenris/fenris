@@ -267,7 +267,8 @@ class MockServer {
         auto [private_key, public_key, keygen_result] =
             crypto_manager.generate_ecdh_keypair();
         if (keygen_result != common::crypto::ECDHResult::SUCCESS) {
-            std::cerr << "Failed to generate server ECDH keypair" << std::endl;
+            std::cerr << "Failed to generate server ECDH keypair: "
+                      << ecdh_result_to_string(keygen_result) << std::endl;
             return false;
         }
 
@@ -276,14 +277,16 @@ class MockServer {
         NetworkResult recv_result =
             receive_prefixed_data(sock, client_public_key);
         if (recv_result != NetworkResult::SUCCESS) {
-            std::cerr << "Failed to receive client public key" << std::endl;
+            std::cerr << "Failed to receive client public key: "
+                      << network_result_to_string(recv_result) << std::endl;
             return false;
         }
 
         // Send our public key to the client
         NetworkResult send_result = send_prefixed_data(sock, public_key);
         if (send_result != NetworkResult::SUCCESS) {
-            std::cerr << "Failed to send server public key" << std::endl;
+            std::cerr << "Failed to send server public key: "
+                      << network_result_to_string(send_result) << std::endl;
             return false;
         }
 
@@ -292,7 +295,8 @@ class MockServer {
             crypto_manager.compute_ecdh_shared_secret(private_key,
                                                       client_public_key);
         if (ss_result != common::crypto::ECDHResult::SUCCESS) {
-            std::cerr << "Failed to compute shared secret" << std::endl;
+            std::cerr << "Failed to compute shared secret: "
+                      << ecdh_result_to_string(ss_result) << std::endl;
             return false;
         }
 
@@ -300,7 +304,8 @@ class MockServer {
         auto [derived_key, key_derive_result] =
             crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
         if (key_derive_result != common::crypto::ECDHResult::SUCCESS) {
-            std::cerr << "Failed to derive key from shared secret" << std::endl;
+            std::cerr << "Failed to derive key from shared secret: "
+                      << ecdh_result_to_string(key_derive_result) << std::endl;
             return false;
         }
 
