@@ -63,13 +63,13 @@ TEST_F(FileOperationsTest, CreateFile)
     std::string filename = "test_create.txt";
     std::string filepath = (test_dir / filename).string();
 
-    FileError result = create_file(filepath);
-    EXPECT_EQ(result, FileError::SUCCESS);
+    FileOperationResult result = create_file(filepath);
+    EXPECT_EQ(result, FileOperationResult::SUCCESS);
     EXPECT_TRUE(fs::exists(filepath));
 
     // Try to create the same file again (should fail)
     result = create_file(filepath);
-    EXPECT_EQ(result, FileError::FILE_ALREADY_EXISTS);
+    EXPECT_EQ(result, FileOperationResult::FILE_ALREADY_EXISTS);
 }
 
 // Test reading a file
@@ -84,14 +84,14 @@ TEST_F(FileOperationsTest, ReadFile)
     std::string filepath = (test_dir / filename).string();
 
     auto [content, error] = read_file(filepath);
-    EXPECT_EQ(error, FileError::SUCCESS);
+    EXPECT_EQ(error, FileOperationResult::SUCCESS);
     std::string content_str(content.begin(), content.end());
     EXPECT_EQ(content_str, test_content);
 
     // Try to read a non-existent file
     auto [invalid_content, invalid_error] =
         read_file(filepath + ".nonexistent");
-    EXPECT_EQ(invalid_error, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(invalid_error, FileOperationResult::FILE_NOT_FOUND);
     EXPECT_TRUE(invalid_content.empty());
 }
 
@@ -103,11 +103,11 @@ TEST_F(FileOperationsTest, WriteFile)
     std::string test_content = "This is test content for writing to a file.";
     std::vector<uint8_t> data(test_content.begin(), test_content.end());
 
-    FileError write_result = write_file(filepath, data);
-    EXPECT_EQ(write_result, FileError::SUCCESS);
+    FileOperationResult write_result = write_file(filepath, data);
+    EXPECT_EQ(write_result, FileOperationResult::SUCCESS);
 
     auto [read_content, read_error] = read_file(filepath);
-    EXPECT_EQ(read_error, FileError::SUCCESS);
+    EXPECT_EQ(read_error, FileOperationResult::SUCCESS);
     std::string read_content_str(read_content.begin(), read_content.end());
     EXPECT_EQ(read_content_str, test_content);
 
@@ -117,11 +117,11 @@ TEST_F(FileOperationsTest, WriteFile)
     std::vector<uint8_t> new_data(new_content.begin(), new_content.end());
 
     write_result = write_file(filepath, new_data);
-    EXPECT_EQ(write_result, FileError::SUCCESS);
+    EXPECT_EQ(write_result, FileOperationResult::SUCCESS);
 
     // Read back and verify new content
     auto [updated_content, updated_error] = read_file(filepath);
-    EXPECT_EQ(updated_error, FileError::SUCCESS);
+    EXPECT_EQ(updated_error, FileOperationResult::SUCCESS);
     std::string updated_content_str(updated_content.begin(),
                                     updated_content.end());
     EXPECT_EQ(updated_content_str, new_content);
@@ -145,11 +145,11 @@ TEST_F(FileOperationsTest, AppendFile)
     write_file(filepath, initial_data);
 
     // Append content
-    FileError append_result = append_file(filepath, append_data);
-    EXPECT_EQ(append_result, FileError::SUCCESS);
+    FileOperationResult append_result = append_file(filepath, append_data);
+    EXPECT_EQ(append_result, FileOperationResult::SUCCESS);
 
     auto [content, error] = read_file(filepath);
-    EXPECT_EQ(error, FileError::SUCCESS);
+    EXPECT_EQ(error, FileOperationResult::SUCCESS);
     std::string expected = initial_content + append_content;
     std::string actual(content.begin(), content.end());
     EXPECT_EQ(actual, expected);
@@ -157,7 +157,7 @@ TEST_F(FileOperationsTest, AppendFile)
     // Test appending to non-existent file (should fail with FILE_NOT_FOUND)
     std::string new_file = (test_dir / "nonexistent_append.txt").string();
     append_result = append_file(new_file, append_data);
-    EXPECT_EQ(append_result, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(append_result, FileOperationResult::FILE_NOT_FOUND);
 }
 
 // Test deleting a file
@@ -169,17 +169,17 @@ TEST_F(FileOperationsTest, DeleteFile)
     create_test_file(filename, "Test file for deletion");
     EXPECT_TRUE(fs::exists(filepath));
 
-    FileError delete_result = delete_file(filepath);
-    EXPECT_EQ(delete_result, FileError::SUCCESS);
+    FileOperationResult delete_result = delete_file(filepath);
+    EXPECT_EQ(delete_result, FileOperationResult::SUCCESS);
     EXPECT_FALSE(fs::exists(filepath));
 
     // Try to delete non-existent file
     delete_result = delete_file(filepath);
-    EXPECT_EQ(delete_result, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(delete_result, FileOperationResult::FILE_NOT_FOUND);
 
     // Try to delete a directory (should fail)
     delete_result = delete_file(test_dir.string());
-    EXPECT_EQ(delete_result, FileError::INVALID_PATH);
+    EXPECT_EQ(delete_result, FileOperationResult::INVALID_PATH);
 }
 
 // Test file_exists function
@@ -205,18 +205,18 @@ TEST_F(FileOperationsTest, GetFileInfo)
     create_test_file(filename, "Test file for info check");
 
     auto [status, error] = get_file_info(filepath);
-    EXPECT_EQ(error, FileError::SUCCESS);
+    EXPECT_EQ(error, FileOperationResult::SUCCESS);
     EXPECT_TRUE(fs::is_regular_file(status));
 
     // Get info for directory
     auto [dir_status, dir_error] = get_file_info(test_dir.string());
-    EXPECT_EQ(dir_error, FileError::SUCCESS);
+    EXPECT_EQ(dir_error, FileOperationResult::SUCCESS);
     EXPECT_TRUE(fs::is_directory(dir_status));
 
     // Get info for non-existent file
     auto [invalid_status, invalid_error] =
         get_file_info(filepath + ".nonexistent");
-    EXPECT_EQ(invalid_error, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(invalid_error, FileOperationResult::FILE_NOT_FOUND);
 }
 
 // Test creating directories
@@ -225,14 +225,14 @@ TEST_F(FileOperationsTest, CreateDirectory)
     std::string dirname = "test_dir";
     std::string dirpath = (test_dir / dirname).string();
 
-    FileError result = create_directory(dirpath);
-    EXPECT_EQ(result, FileError::SUCCESS);
+    FileOperationResult result = create_directory(dirpath);
+    EXPECT_EQ(result, FileOperationResult::SUCCESS);
     EXPECT_TRUE(fs::exists(dirpath));
     EXPECT_TRUE(fs::is_directory(dirpath));
 
     // Try to create the same directory again
     result = create_directory(dirpath);
-    EXPECT_EQ(result, FileError::DIRECTORY_ALREADY_EXISTS);
+    EXPECT_EQ(result, FileOperationResult::DIRECTORY_ALREADY_EXISTS);
 
     // Try to create a directory where a file exists
     std::string filename = "test_file_not_dir";
@@ -240,7 +240,7 @@ TEST_F(FileOperationsTest, CreateDirectory)
     create_test_file(filename, "This is a file, not a directory");
 
     result = create_directory(filepath);
-    EXPECT_EQ(result, FileError::INVALID_PATH);
+    EXPECT_EQ(result, FileOperationResult::INVALID_PATH);
 }
 
 // Test creating nested directories
@@ -249,14 +249,14 @@ TEST_F(FileOperationsTest, CreateDirectories)
     std::string nested_path = "nested/path/to/create";
     std::string dirpath = (test_dir / nested_path).string();
 
-    FileError result = create_directories(dirpath);
-    EXPECT_EQ(result, FileError::SUCCESS);
+    FileOperationResult result = create_directories(dirpath);
+    EXPECT_EQ(result, FileOperationResult::SUCCESS);
     EXPECT_TRUE(fs::exists(dirpath));
     EXPECT_TRUE(fs::is_directory(dirpath));
 
     // Creating them again should still succeed
     result = create_directories(dirpath);
-    EXPECT_EQ(result, FileError::SUCCESS);
+    EXPECT_EQ(result, FileOperationResult::SUCCESS);
 }
 
 // Test deleting directories
@@ -269,8 +269,8 @@ TEST_F(FileOperationsTest, DeleteDirectory)
     EXPECT_TRUE(fs::exists(dirpath));
 
     // Delete directory
-    FileError result = delete_directory(dirpath);
-    EXPECT_EQ(result, FileError::SUCCESS);
+    FileOperationResult result = delete_directory(dirpath);
+    EXPECT_EQ(result, FileOperationResult::SUCCESS);
     EXPECT_FALSE(fs::exists(dirpath));
 
     // Create directory with contents
@@ -280,22 +280,22 @@ TEST_F(FileOperationsTest, DeleteDirectory)
 
     // Try to delete non-empty directory (should fail)
     result = delete_directory(dirpath, false);
-    EXPECT_EQ(result, FileError::DIRECTORY_NOT_EMPTY);
+    EXPECT_EQ(result, FileOperationResult::DIRECTORY_NOT_EMPTY);
 
     // Delete with recursive flag
     result = delete_directory(dirpath, true);
-    EXPECT_EQ(result, FileError::SUCCESS);
+    EXPECT_EQ(result, FileOperationResult::SUCCESS);
     EXPECT_FALSE(fs::exists(dirpath));
 
     // Try to delete non-existent directory
     result = delete_directory(dirpath);
-    EXPECT_EQ(result, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(result, FileOperationResult::FILE_NOT_FOUND);
 
     // Try to delete a file as a directory
     std::string filepath = (test_dir / "not_a_dir.txt").string();
     create_test_file("not_a_dir.txt", "This is a file, not a directory");
     result = delete_directory(filepath);
-    EXPECT_EQ(result, FileError::INVALID_PATH);
+    EXPECT_EQ(result, FileOperationResult::INVALID_PATH);
 }
 
 // Test listing directory contents
@@ -309,7 +309,7 @@ TEST_F(FileOperationsTest, ListDirectory)
 
     // List directory contents
     auto [entries, error] = list_directory(test_dir.string());
-    EXPECT_EQ(error, FileError::SUCCESS);
+    EXPECT_EQ(error, FileOperationResult::SUCCESS);
     EXPECT_EQ(entries.size(), 4);
 
     // Verify entries
@@ -325,13 +325,13 @@ TEST_F(FileOperationsTest, ListDirectory)
     // List contents of non-existent directory
     auto [invalid_entries, invalid_error] =
         list_directory((test_dir / "nonexistent").string());
-    EXPECT_EQ(invalid_error, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(invalid_error, FileOperationResult::FILE_NOT_FOUND);
     EXPECT_TRUE(invalid_entries.empty());
 
     // List a file as a directory
     auto [file_entries, file_error] =
         list_directory((test_dir / "file1.txt").string());
-    EXPECT_EQ(file_error, FileError::INVALID_PATH);
+    EXPECT_EQ(file_error, FileOperationResult::INVALID_PATH);
     EXPECT_TRUE(file_entries.empty());
 }
 
@@ -344,27 +344,27 @@ TEST_F(FileOperationsTest, ChangeDirectory)
     fs::create_directory(dirpath);
 
     auto [initial_dir, initial_error] = get_current_directory();
-    EXPECT_EQ(initial_error, FileError::SUCCESS);
+    EXPECT_EQ(initial_error, FileOperationResult::SUCCESS);
 
-    FileError change_result = change_directory(dirpath);
-    EXPECT_EQ(change_result, FileError::SUCCESS);
+    FileOperationResult change_result = change_directory(dirpath);
+    EXPECT_EQ(change_result, FileOperationResult::SUCCESS);
 
     auto [new_dir, new_error] = get_current_directory();
-    EXPECT_EQ(new_error, FileError::SUCCESS);
+    EXPECT_EQ(new_error, FileOperationResult::SUCCESS);
 
     EXPECT_NE(initial_dir, new_dir);
     EXPECT_EQ(fs::path(new_dir), fs::path(dirpath));
 
     change_result = change_directory(test_dir.string());
-    EXPECT_EQ(change_result, FileError::SUCCESS);
+    EXPECT_EQ(change_result, FileOperationResult::SUCCESS);
 
     change_result = change_directory((test_dir / "nonexistent").string());
-    EXPECT_EQ(change_result, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(change_result, FileOperationResult::FILE_NOT_FOUND);
 
     std::string filepath = (test_dir / "not_a_dir.txt").string();
     create_test_file("not_a_dir.txt", "This is a file, not a directory");
     change_result = change_directory(filepath);
-    EXPECT_EQ(change_result, FileError::INVALID_PATH);
+    EXPECT_EQ(change_result, FileOperationResult::INVALID_PATH);
 }
 
 // Test renaming files
@@ -378,21 +378,21 @@ TEST_F(FileOperationsTest, RenamePath)
 
     create_test_file(old_name, "File for renaming test");
 
-    FileError result = rename_path(old_path, new_path);
-    EXPECT_EQ(result, FileError::SUCCESS);
+    FileOperationResult result = rename_path(old_path, new_path);
+    EXPECT_EQ(result, FileOperationResult::SUCCESS);
     EXPECT_FALSE(fs::exists(old_path));
     EXPECT_TRUE(fs::exists(new_path));
 
     // Try to rename non-existent file
     result = rename_path((test_dir / "nonexistent.txt").string(), new_path);
-    EXPECT_EQ(result, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(result, FileOperationResult::FILE_NOT_FOUND);
 
     // Try to rename to existing file
     std::string another_file = (test_dir / "another_file.txt").string();
     create_test_file("another_file.txt", "Another test file");
 
     result = rename_path(another_file, new_path);
-    EXPECT_EQ(result, FileError::FILE_ALREADY_EXISTS);
+    EXPECT_EQ(result, FileOperationResult::FILE_ALREADY_EXISTS);
 }
 
 // Test copying files
@@ -406,20 +406,20 @@ TEST_F(FileOperationsTest, CopyFile)
 
     create_test_file(source_name, "File content for copy test");
 
-    FileError result = copy_file(source_path, dest_path);
-    EXPECT_EQ(result, FileError::SUCCESS);
+    FileOperationResult result = copy_file(source_path, dest_path);
+    EXPECT_EQ(result, FileOperationResult::SUCCESS);
     EXPECT_TRUE(fs::exists(dest_path));
     EXPECT_TRUE(fs::exists(source_path));
 
     // Try to copy non-existent file
     result = copy_file((test_dir / "nonexistent.txt").string(), dest_path);
-    EXPECT_EQ(result, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(result, FileOperationResult::FILE_NOT_FOUND);
 
     // Try to copy a directory (should fail)
     std::string dir_path = (test_dir / "test_dir").string();
     fs::create_directory(dir_path);
     result = copy_file(dir_path, (test_dir / "dir_copy").string());
-    EXPECT_EQ(result, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(result, FileOperationResult::FILE_NOT_FOUND);
 }
 
 // Test getting file size
@@ -433,18 +433,18 @@ TEST_F(FileOperationsTest, GetFileSize)
 
     auto [size, error] = get_file_size(filepath);
 
-    EXPECT_EQ(error, FileError::SUCCESS);
+    EXPECT_EQ(error, FileOperationResult::SUCCESS);
     EXPECT_EQ(size, content.size());
 
     // Try to get size of non-existent file
     auto [invalid_size, invalid_error] =
         get_file_size((test_dir / "nonexistent.txt").string());
-    EXPECT_EQ(invalid_error, FileError::FILE_NOT_FOUND);
+    EXPECT_EQ(invalid_error, FileOperationResult::FILE_NOT_FOUND);
     EXPECT_EQ(invalid_size, 0);
 
     // Try to get size of a directory
     auto [dir_size, dir_error] = get_file_size(test_dir.string());
-    EXPECT_EQ(dir_error, FileError::INVALID_PATH);
+    EXPECT_EQ(dir_error, FileOperationResult::INVALID_PATH);
     EXPECT_EQ(dir_size, 0);
 }
 
@@ -469,8 +469,8 @@ TEST_F(FileOperationsTest, PermissionErrors)
     // Test write permissions by first ensuring we can write to the file
     std::string test_content = "Testing permissions";
     std::vector<uint8_t> test_data(test_content.begin(), test_content.end());
-    FileError initial_write = write_file(filepath, test_data);
-    EXPECT_EQ(initial_write, FileError::SUCCESS);
+    FileOperationResult initial_write = write_file(filepath, test_data);
+    EXPECT_EQ(initial_write, FileOperationResult::SUCCESS);
 
     // Set restrictive permissions (read-only)
     fs::permissions(filepath,
@@ -480,12 +480,12 @@ TEST_F(FileOperationsTest, PermissionErrors)
     // Try to write to read-only file
     std::string new_content = "Try to write to read-only file";
     std::vector<uint8_t> data(new_content.begin(), new_content.end());
-    FileError write_result = write_file(filepath, data);
-    EXPECT_EQ(write_result, FileError::PERMISSION_DENIED);
+    FileOperationResult write_result = write_file(filepath, data);
+    EXPECT_EQ(write_result, FileOperationResult::PERMISSION_DENIED);
 
     // Try to append to read-only file
-    FileError append_result = append_file(filepath, data);
-    EXPECT_EQ(append_result, FileError::PERMISSION_DENIED);
+    FileOperationResult append_result = append_file(filepath, data);
+    EXPECT_EQ(append_result, FileOperationResult::PERMISSION_DENIED);
 
     // Set directory to read-only
     fs::permissions(dirpath,
@@ -494,13 +494,13 @@ TEST_F(FileOperationsTest, PermissionErrors)
 
     // Try to create file in read-only directory
     std::string nested_file = (fs::path(dirpath) / "new_file.txt").string();
-    FileError create_result = create_file(nested_file);
-    EXPECT_EQ(create_result, FileError::PERMISSION_DENIED);
+    FileOperationResult create_result = create_file(nested_file);
+    EXPECT_EQ(create_result, FileOperationResult::PERMISSION_DENIED);
 
     // Try to create directory in read-only directory
     std::string nested_dir = (fs::path(dirpath) / "new_dir").string();
-    FileError mkdir_result = create_directory(nested_dir);
-    EXPECT_EQ(mkdir_result, FileError::PERMISSION_DENIED);
+    FileOperationResult mkdir_result = create_directory(nested_dir);
+    EXPECT_EQ(mkdir_result, FileOperationResult::PERMISSION_DENIED);
 
     fs::permissions(filepath, fs::perms::owner_all, fs::perm_options::add);
     fs::permissions(dirpath, fs::perms::owner_all, fs::perm_options::add);
@@ -510,12 +510,12 @@ TEST_F(FileOperationsTest, PermissionErrors)
 TEST_F(FileOperationsTest, GetCurrentDirectory)
 {
     auto [current_dir, error] = get_current_directory();
-    EXPECT_EQ(error, FileError::SUCCESS);
+    EXPECT_EQ(error, FileOperationResult::SUCCESS);
     EXPECT_EQ(current_dir, original_dir.string());
 
     change_directory(test_dir.string());
     auto [new_dir, new_error] = get_current_directory();
-    EXPECT_EQ(new_error, FileError::SUCCESS);
+    EXPECT_EQ(new_error, FileOperationResult::SUCCESS);
     EXPECT_EQ(new_dir, test_dir.string());
 }
 

@@ -149,38 +149,38 @@ bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
 {
     crypto::CryptoManager crypto_manager;
 
-    auto [private_key, public_key, keygen_error] =
+    auto [private_key, public_key, keygen_result] =
         crypto_manager.generate_ecdh_keypair();
-    if (keygen_error != crypto::ECDHError::SUCCESS) {
+    if (keygen_result != crypto::ECDHResult::SUCCESS) {
         std::cerr << "Failed to generate client ECDH keypair" << std::endl;
         return false;
     }
 
-    NetworkError send_result = send_prefixed_data(sock, public_key);
-    if (send_result != NetworkError::SUCCESS) {
+    NetworkResult send_result = send_prefixed_data(sock, public_key);
+    if (send_result != NetworkResult::SUCCESS) {
         std::cerr << "Failed to send client public key" << std::endl;
         return false;
     }
 
     std::vector<uint8_t> server_public_key;
-    NetworkError receive_result =
+    NetworkResult receive_result =
         receive_prefixed_data(sock, server_public_key);
-    if (receive_result != NetworkError::SUCCESS) {
+    if (receive_result != NetworkResult::SUCCESS) {
         std::cerr << "Failed to receive server public key" << std::endl;
         return false;
     }
 
-    auto [shared_secret, ss_error] =
+    auto [shared_secret, ss_result] =
         crypto_manager.compute_ecdh_shared_secret(private_key,
                                                   server_public_key);
-    if (ss_error != crypto::ECDHError::SUCCESS) {
+    if (ss_result != crypto::ECDHResult::SUCCESS) {
         std::cerr << "Failed to compute shared secret" << std::endl;
         return false;
     }
 
-    auto [derived_key, key_derive_error] =
+    auto [derived_key, key_derive_result] =
         crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
-    if (key_derive_error != crypto::ECDHError::SUCCESS) {
+    if (key_derive_result != crypto::ECDHResult::SUCCESS) {
         std::cerr << "Failed to derive key from shared secret" << std::endl;
         return false;
     }
@@ -333,13 +333,13 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
 
     std::vector<uint8_t> serialized_request = serialize_request(ping_request);
     ASSERT_EQ(send_prefixed_data(client_sock, serialized_request),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     std::vector<uint8_t> received_data;
     ASSERT_EQ(receive_prefixed_data(client_sock, received_data),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
 
     fenris::Response response = deserialize_response(received_data);
     ASSERT_TRUE(response.success());
@@ -354,13 +354,13 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
     std::vector<uint8_t> serialized_terminate_request =
         serialize_request(terminate_request);
     ASSERT_EQ(send_prefixed_data(client_sock, serialized_terminate_request),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     std::vector<uint8_t> terminate_received_data;
     ASSERT_EQ(receive_prefixed_data(client_sock, terminate_received_data),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
 
     fenris::Response terminate_response =
         deserialize_response(terminate_received_data);
@@ -384,11 +384,11 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
 
         std::vector<uint8_t> serialized_request = serialize_request(request);
         ASSERT_EQ(send_prefixed_data(sock, serialized_request),
-                  NetworkError::SUCCESS);
+                  NetworkResult::SUCCESS);
 
         std::vector<uint8_t> received_data;
         ASSERT_EQ(receive_prefixed_data(sock, received_data),
-                  NetworkError::SUCCESS);
+                  NetworkResult::SUCCESS);
 
         fenris::Response response = deserialize_response(received_data);
         ASSERT_TRUE(response.success());
@@ -407,13 +407,13 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
         std::vector<uint8_t> serialized_terminate_request =
             serialize_request(terminate_request);
         ASSERT_EQ(send_prefixed_data(sock, serialized_terminate_request),
-                  NetworkError::SUCCESS);
+                  NetworkResult::SUCCESS);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         std::vector<uint8_t> terminate_received_data;
         ASSERT_EQ(receive_prefixed_data(sock, terminate_received_data),
-                  NetworkError::SUCCESS);
+                  NetworkResult::SUCCESS);
 
         fenris::Response terminate_response =
             deserialize_response(terminate_received_data);
@@ -468,7 +468,7 @@ TEST_F(ServerConnectionManagerTest, ClientDisconnection)
 
     std::vector<uint8_t> serialized_request = serialize_request(ping_request);
     ASSERT_EQ(send_prefixed_data(client_sock, serialized_request),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     close(client_sock);
@@ -507,11 +507,11 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
 
     std::vector<uint8_t> serialized_read_req = serialize_request(read_request);
     ASSERT_EQ(send_prefixed_data(client_sock, serialized_read_req),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
 
     std::vector<uint8_t> read_response_data;
     ASSERT_EQ(receive_prefixed_data(client_sock, read_response_data),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
     fenris::Response read_response = deserialize_response(read_response_data);
     ASSERT_TRUE(read_response.success());
     ASSERT_EQ(read_response.data(), "READ_FILE");
@@ -524,11 +524,11 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     std::vector<uint8_t> serialized_write_req =
         serialize_request(write_request);
     ASSERT_EQ(send_prefixed_data(client_sock, serialized_write_req),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
 
     std::vector<uint8_t> write_response_data;
     ASSERT_EQ(receive_prefixed_data(client_sock, write_response_data),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
     fenris::Response write_response = deserialize_response(write_response_data);
     ASSERT_TRUE(write_response.success());
     ASSERT_EQ(write_response.data(), "WRITE_FILE");
@@ -550,7 +550,7 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     std::vector<uint8_t> serialized_terminate_request =
         serialize_request(terminate_request);
     ASSERT_EQ(send_prefixed_data(client_sock, serialized_terminate_request),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
     std::cout << "Sent terminate request: " << terminate_request.DebugString()
               << std::endl;
 
@@ -558,7 +558,7 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
 
     std::vector<uint8_t> terminate_received_data;
     ASSERT_EQ(receive_prefixed_data(client_sock, terminate_received_data),
-              NetworkError::SUCCESS);
+              NetworkResult::SUCCESS);
     std::cout << "Received terminate data size: "
               << terminate_received_data.size() << std::endl;
 }

@@ -10,11 +10,11 @@
 namespace fenris {
 namespace common {
 namespace crypto {
-    
+
 /**
- * Error codes for encryption/decryption operations
+ * Result of encryption/decryption operations
  */
-enum class EncryptionError {
+enum class EncryptionResult {
     SUCCESS = 0,
     INVALID_KEY_SIZE,
     INVALID_IV_SIZE,
@@ -23,7 +23,7 @@ enum class EncryptionError {
     DECRYPTION_FAILED,
 };
 
-enum class ECDHError {
+enum class ECDHResult {
     SUCCESS = 0,
     KEY_GENERATION_FAILED,
     SHARED_SECRET_FAILED,
@@ -59,9 +59,9 @@ class ICryptoManager {
      * @param key The encryption key.
      * @param iv The initialization vector.
      * @return A pair containing the ciphertext (including any authentication
-     * tag) and an error code.
+     * tag) and an EncryptionResult.
      */
-    virtual std::pair<std::vector<uint8_t>, EncryptionError>
+    virtual std::pair<std::vector<uint8_t>, EncryptionResult>
     encrypt_data(const std::vector<uint8_t> &plaintext,
                  const std::vector<uint8_t> &key,
                  const std::vector<uint8_t> &iv) = 0;
@@ -72,9 +72,9 @@ class ICryptoManager {
      * @param ciphertext The data to decrypt (including any authentication tag).
      * @param key The decryption key.
      * @param iv The initialization vector.
-     * @return A pair containing the plaintext and an error code.
+     * @return A pair containing the plaintext and an EncryptionResult.
      */
-    virtual std::pair<std::vector<uint8_t>, EncryptionError>
+    virtual std::pair<std::vector<uint8_t>, EncryptionResult>
     decrypt_data(const std::vector<uint8_t> &ciphertext,
                  const std::vector<uint8_t> &key,
                  const std::vector<uint8_t> &iv) = 0;
@@ -82,10 +82,10 @@ class ICryptoManager {
     /**
      * @brief Generates an Elliptic Curve Diffie-Hellman (ECDH) key pair.
      *
-     * @return A tuple containing the private key, public key, and an error
-     * code.
+     * @return A tuple containing the private key, public key, and an
+     * ECDHResult.
      */
-    virtual std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, ECDHError>
+    virtual std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, ECDHResult>
     generate_ecdh_keypair() = 0;
 
     /**
@@ -93,9 +93,9 @@ class ICryptoManager {
      *
      * @param private_key Our private key.
      * @param peer_public_key The peer's public key.
-     * @return A pair containing the shared secret and an error code.
+     * @return A pair containing the shared secret and a ECDHResult.
      */
-    virtual std::pair<std::vector<uint8_t>, ECDHError>
+    virtual std::pair<std::vector<uint8_t>, ECDHResult>
     compute_ecdh_shared_secret(const std::vector<uint8_t> &private_key,
                                const std::vector<uint8_t> &peer_public_key) = 0;
 
@@ -106,9 +106,9 @@ class ICryptoManager {
      * @param shared_secret The shared secret (e.g., computed via ECDH).
      * @param key_size The desired size of the derived key in bytes.
      * @param context Optional context information for the derivation process.
-     * @return A pair containing the derived key and an error code.
+     * @return A pair containing the derived key and a ECDHResult.
      */
-    virtual std::pair<std::vector<uint8_t>, ECDHError>
+    virtual std::pair<std::vector<uint8_t>, ECDHResult>
     derive_key_from_shared_secret(const std::vector<uint8_t> &shared_secret,
                                   size_t key_size,
                                   const std::vector<uint8_t> &context = {}) = 0;
@@ -129,11 +129,11 @@ class CryptoManager : public ICryptoManager {
      * @param plaintext The data to encrypt.
      * @param key The encryption key (16, 24, or 32 bytes).
      * @param iv The initialization vector (must be AES_GCM_IV_SIZE bytes).
-     * @return A pair containing the ciphertext (including tag) and an error
-     * code.
+     * @return A pair containing the ciphertext (including tag) and an
+     * EncryptionResult.
      * @see ICryptoManager::encrypt_data
      */
-    std::pair<std::vector<uint8_t>, EncryptionError>
+    std::pair<std::vector<uint8_t>, EncryptionResult>
     encrypt_data(const std::vector<uint8_t> &plaintext,
                  const std::vector<uint8_t> &key,
                  const std::vector<uint8_t> &iv) override;
@@ -143,10 +143,10 @@ class CryptoManager : public ICryptoManager {
      * @param ciphertext The data to decrypt (including tag).
      * @param key The decryption key (16, 24, or 32 bytes).
      * @param iv The initialization vector (must be AES_GCM_IV_SIZE bytes).
-     * @return A pair containing the plaintext and an error code.
+     * @return A pair containing the plaintext and a EncryptionResult.
      * @see ICryptoManager::decrypt_data
      */
-    std::pair<std::vector<uint8_t>, EncryptionError>
+    std::pair<std::vector<uint8_t>, EncryptionResult>
     decrypt_data(const std::vector<uint8_t> &ciphertext,
                  const std::vector<uint8_t> &key,
                  const std::vector<uint8_t> &iv) override;
@@ -157,17 +157,17 @@ class CryptoManager : public ICryptoManager {
      * code.
      * @see ICryptoManager::generate_ecdh_keypair
      */
-    std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, ECDHError>
+    std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, ECDHResult>
     generate_ecdh_keypair() override;
 
     /**
      * @brief Computes an ECDH shared secret using the NIST P-256 curve.
      * @param private_key Our private key.
      * @param peer_public_key The peer's public key.
-     * @return A pair containing the shared secret and an error code.
+     * @return A pair containing the shared secret and a ECDHResult.
      * @see ICryptoManager::compute_ecdh_shared_secret
      */
-    std::pair<std::vector<uint8_t>, ECDHError> compute_ecdh_shared_secret(
+    std::pair<std::vector<uint8_t>, ECDHResult> compute_ecdh_shared_secret(
         const std::vector<uint8_t> &private_key,
         const std::vector<uint8_t> &peer_public_key) override;
 
@@ -176,10 +176,10 @@ class CryptoManager : public ICryptoManager {
      * @param shared_secret The shared secret computed via ECDH.
      * @param key_size The desired key size (16, 24, or 32 bytes).
      * @param context Optional context information for the derivation.
-     * @return A pair containing the derived key and an error code.
+     * @return A pair containing the derived key and a ECDHResult.
      * @see ICryptoManager::derive_key_from_shared_secret
      */
-    std::pair<std::vector<uint8_t>, ECDHError> derive_key_from_shared_secret(
+    std::pair<std::vector<uint8_t>, ECDHResult> derive_key_from_shared_secret(
         const std::vector<uint8_t> &shared_secret,
         size_t key_size,
         const std::vector<uint8_t> &context = {}) override;

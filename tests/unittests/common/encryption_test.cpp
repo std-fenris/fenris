@@ -32,10 +32,10 @@ TEST(EncryptionTest, BasicEncryptDecrypt)
     }
 
     // Encrypt the data
-    auto [ciphertext, encrypt_error] =
+    auto [ciphertext, encrypt_result] =
         crypto_manager.encrypt_data(plaintext, key, iv);
 
-    EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
+    EXPECT_EQ(encrypt_result, EncryptionResult::SUCCESS);
     EXPECT_FALSE(ciphertext.empty());
     EXPECT_NE(ciphertext.size(),
               plaintext.size()); // Should be larger due to authentication tag
@@ -47,9 +47,9 @@ TEST(EncryptionTest, BasicEncryptDecrypt)
                      std::min(ciphertext.size(), plaintext.size())));
 
     // Decrypt the data
-    auto [decrypted, decrypt_error] =
+    auto [decrypted, decrypt_result] =
         crypto_manager.decrypt_data(ciphertext, key, iv);
-    EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
+    EXPECT_EQ(decrypt_result, EncryptionResult::SUCCESS);
 
     // Verify the decryption result matches the original
     ASSERT_EQ(decrypted.size(), plaintext.size());
@@ -66,15 +66,15 @@ TEST(EncryptionTest, EmptyInput)
     std::vector<uint8_t> iv(12, 0);  // 96-bit IV
 
     // Encrypt empty data
-    auto [ciphertext, encrypt_error] =
+    auto [ciphertext, encrypt_result] =
         crypto_manager.encrypt_data(empty, key, iv);
-    EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
+    EXPECT_EQ(encrypt_result, EncryptionResult::SUCCESS);
     EXPECT_TRUE(ciphertext.empty());
 
     // Decrypt empty data
-    auto [decrypted, decrypt_error] =
+    auto [decrypted, decrypt_result] =
         crypto_manager.decrypt_data(empty, key, iv);
-    EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
+    EXPECT_EQ(decrypt_result, EncryptionResult::SUCCESS);
     EXPECT_TRUE(decrypted.empty());
 }
 
@@ -91,9 +91,9 @@ TEST(EncryptionTest, InvalidKeySize)
     std::vector<uint8_t> iv(12, 0);
 
     // Encrypt with invalid key
-    auto [ciphertext, encrypt_error] =
+    auto [ciphertext, encrypt_result] =
         crypto_manager.encrypt_data(plaintext, invalid_key, iv);
-    EXPECT_EQ(encrypt_error, EncryptionError::INVALID_KEY_SIZE);
+    EXPECT_EQ(encrypt_result, EncryptionResult::INVALID_KEY_SIZE);
     EXPECT_TRUE(ciphertext.empty());
 
     // Create a valid key and encrypt for testing decryption
@@ -102,9 +102,9 @@ TEST(EncryptionTest, InvalidKeySize)
         crypto_manager.encrypt_data(plaintext, valid_key, iv);
 
     // Decrypt with invalid key
-    auto [decrypted, decrypt_error] =
+    auto [decrypted, decrypt_result] =
         crypto_manager.decrypt_data(valid_ciphertext, invalid_key, iv);
-    EXPECT_EQ(decrypt_error, EncryptionError::INVALID_KEY_SIZE);
+    EXPECT_EQ(decrypt_result, EncryptionResult::INVALID_KEY_SIZE);
     EXPECT_TRUE(decrypted.empty());
 }
 
@@ -122,9 +122,9 @@ TEST(EncryptionTest, InvalidIVSize)
     std::vector<uint8_t> invalid_iv(16, 0);
 
     // Encrypt with invalid IV
-    auto [ciphertext, encrypt_error] =
+    auto [ciphertext, encrypt_result] =
         crypto_manager.encrypt_data(plaintext, key, invalid_iv);
-    EXPECT_EQ(encrypt_error, EncryptionError::INVALID_IV_SIZE);
+    EXPECT_EQ(encrypt_result, EncryptionResult::INVALID_IV_SIZE);
     EXPECT_TRUE(ciphertext.empty());
 
     // Create a valid IV and encrypt for testing decryption
@@ -133,9 +133,9 @@ TEST(EncryptionTest, InvalidIVSize)
         crypto_manager.encrypt_data(plaintext, key, valid_iv);
 
     // Decrypt with invalid IV
-    auto [decrypted, decrypt_error] =
+    auto [decrypted, decrypt_result] =
         crypto_manager.decrypt_data(valid_ciphertext, key, invalid_iv);
-    EXPECT_EQ(decrypt_error, EncryptionError::INVALID_IV_SIZE);
+    EXPECT_EQ(decrypt_result, EncryptionResult::INVALID_IV_SIZE);
     EXPECT_TRUE(decrypted.empty());
 }
 
@@ -151,9 +151,9 @@ TEST(EncryptionTest, TamperedCiphertext)
     std::vector<uint8_t> iv(12, 0);  // 96-bit IV
 
     // Encrypt the data
-    auto [ciphertext, encrypt_error] =
+    auto [ciphertext, encrypt_result] =
         crypto_manager.encrypt_data(plaintext, key, iv);
-    EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
+    EXPECT_EQ(encrypt_result, EncryptionResult::SUCCESS);
 
     // Tamper with the ciphertext
     if (!ciphertext.empty()) {
@@ -161,9 +161,9 @@ TEST(EncryptionTest, TamperedCiphertext)
     }
 
     // Decrypt the tampered data
-    auto [decrypted, decrypt_error] =
+    auto [decrypted, decrypt_result] =
         crypto_manager.decrypt_data(ciphertext, key, iv);
-    EXPECT_EQ(decrypt_error, EncryptionError::DECRYPTION_FAILED);
+    EXPECT_EQ(decrypt_result, EncryptionResult::DECRYPTION_FAILED);
     EXPECT_TRUE(decrypted.empty());
 }
 
@@ -196,14 +196,14 @@ TEST(EncryptionTest, LargeData)
     }
 
     // Encrypt the data
-    auto [ciphertext, encrypt_error] =
+    auto [ciphertext, encrypt_result] =
         crypto_manager.encrypt_data(large_data, key, iv);
-    EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
+    EXPECT_EQ(encrypt_result, EncryptionResult::SUCCESS);
 
     // Decrypt the data
-    auto [decrypted, decrypt_error] =
+    auto [decrypted, decrypt_result] =
         crypto_manager.decrypt_data(ciphertext, key, iv);
-    EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
+    EXPECT_EQ(decrypt_result, EncryptionResult::SUCCESS);
 
     // Verify the result matches the original
     ASSERT_EQ(decrypted.size(), large_data.size());
@@ -223,13 +223,13 @@ TEST(EncryptionTest, DifferentKeySizes)
     // Test AES-128 (16-byte key)
     {
         std::vector<uint8_t> key_128(16, 1);
-        auto [ciphertext, encrypt_error] =
+        auto [ciphertext, encrypt_result] =
             crypto_manager.encrypt_data(plaintext, key_128, iv);
-        EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
+        EXPECT_EQ(encrypt_result, EncryptionResult::SUCCESS);
 
-        auto [decrypted, decrypt_error] =
+        auto [decrypted, decrypt_result] =
             crypto_manager.decrypt_data(ciphertext, key_128, iv);
-        EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
+        EXPECT_EQ(decrypt_result, EncryptionResult::SUCCESS);
 
         ASSERT_EQ(decrypted.size(), plaintext.size());
         EXPECT_EQ(0,
@@ -239,13 +239,13 @@ TEST(EncryptionTest, DifferentKeySizes)
     // Test AES-192 (24-byte key)
     {
         std::vector<uint8_t> key_192(24, 2);
-        auto [ciphertext, encrypt_error] =
+        auto [ciphertext, encrypt_result] =
             crypto_manager.encrypt_data(plaintext, key_192, iv);
-        EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
+        EXPECT_EQ(encrypt_result, EncryptionResult::SUCCESS);
 
-        auto [decrypted, decrypt_error] =
+        auto [decrypted, decrypt_result] =
             crypto_manager.decrypt_data(ciphertext, key_192, iv);
-        EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
+        EXPECT_EQ(decrypt_result, EncryptionResult::SUCCESS);
 
         ASSERT_EQ(decrypted.size(), plaintext.size());
         EXPECT_EQ(0,
@@ -255,13 +255,13 @@ TEST(EncryptionTest, DifferentKeySizes)
     // Test AES-256 (32-byte key)
     {
         std::vector<uint8_t> key_256(32, 3);
-        auto [ciphertext, encrypt_error] =
+        auto [ciphertext, encrypt_result] =
             crypto_manager.encrypt_data(plaintext, key_256, iv);
-        EXPECT_EQ(encrypt_error, EncryptionError::SUCCESS);
+        EXPECT_EQ(encrypt_result, EncryptionResult::SUCCESS);
 
-        auto [decrypted, decrypt_error] =
+        auto [decrypted, decrypt_result] =
             crypto_manager.decrypt_data(ciphertext, key_256, iv);
-        EXPECT_EQ(decrypt_error, EncryptionError::SUCCESS);
+        EXPECT_EQ(decrypt_result, EncryptionResult::SUCCESS);
 
         ASSERT_EQ(decrypted.size(), plaintext.size());
         EXPECT_EQ(0,

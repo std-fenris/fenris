@@ -27,7 +27,7 @@ TEST_F(CompressionTest, CompressEmptyData)
     auto [result, success] =
         compression_manager.compress(input, 6); // Default compression level
 
-    EXPECT_EQ(success, CompressionError::SUCCESS);
+    EXPECT_EQ(success, CompressionResult::SUCCESS);
     EXPECT_TRUE(result.empty());
 }
 
@@ -41,7 +41,7 @@ TEST_F(CompressionTest, CompressNormalData)
     std::vector<uint8_t> input(test_data.begin(), test_data.end());
     auto [compressed, success] = compression_manager.compress(input, 6);
 
-    EXPECT_EQ(success, CompressionError::SUCCESS);
+    EXPECT_EQ(success, CompressionResult::SUCCESS);
     EXPECT_FALSE(compressed.empty());
 
     // Compressed data should be smaller than original for compressible data
@@ -58,11 +58,11 @@ TEST_F(CompressionTest, CompressWithDifferentLevels)
 
     // Test min level compression
     auto [result_min, success_min] = compression_manager.compress(input, 1);
-    EXPECT_EQ(success_min, CompressionError::SUCCESS);
+    EXPECT_EQ(success_min, CompressionResult::SUCCESS);
 
     // Test max level compression
     auto [result_max, success_max] = compression_manager.compress(input, 9);
-    EXPECT_EQ(success_max, CompressionError::SUCCESS);
+    EXPECT_EQ(success_max, CompressionResult::SUCCESS);
 
     // Higher compression level should result in same or smaller data for
     // compressible data (This might not always be true for all data types, but
@@ -77,7 +77,7 @@ TEST_F(CompressionTest, CompressInvalidLevel)
     auto [result, success] =
         compression_manager.compress(input, -1); // Invalid level
 
-    EXPECT_EQ(success, CompressionError::INVALID_LEVEL);
+    EXPECT_EQ(success, CompressionResult::INVALID_LEVEL);
     EXPECT_TRUE(result.empty());
 }
 
@@ -87,7 +87,7 @@ TEST_F(CompressionTest, DecompressEmptyData)
     std::vector<uint8_t> input = {};
     auto [result, success] = compression_manager.decompress(input, 0);
 
-    EXPECT_EQ(success, CompressionError::SUCCESS);
+    EXPECT_EQ(success, CompressionResult::SUCCESS);
     EXPECT_TRUE(result.empty());
 }
 
@@ -102,12 +102,12 @@ TEST_F(CompressionTest, RoundTrip)
     // Compress
     auto [compressed, compress_success] =
         compression_manager.compress(input, 6);
-    EXPECT_EQ(compress_success, CompressionError::SUCCESS);
+    EXPECT_EQ(compress_success, CompressionResult::SUCCESS);
 
     // Decompress
     auto [decompressed, decompress_success] =
         compression_manager.decompress(compressed, input.size());
-    EXPECT_EQ(decompress_success, CompressionError::SUCCESS);
+    EXPECT_EQ(decompress_success, CompressionResult::SUCCESS);
 
     // Verify the result matches the original
     ASSERT_EQ(decompressed.size(), input.size());
@@ -131,12 +131,12 @@ TEST_F(CompressionTest, LargeData)
     auto [compressed, compress_success] = compression_manager.compress(
         large_data,
         1); // Using low compression level for speed
-    EXPECT_EQ(compress_success, CompressionError::SUCCESS);
+    EXPECT_EQ(compress_success, CompressionResult::SUCCESS);
 
     // Decompress the data
     auto [decompressed, decompress_success] =
         compression_manager.decompress(compressed, large_data.size());
-    EXPECT_EQ(decompress_success, CompressionError::SUCCESS);
+    EXPECT_EQ(decompress_success, CompressionResult::SUCCESS);
 
     // Verify the result matches the original
     ASSERT_EQ(decompressed.size(), large_data.size());
@@ -153,7 +153,7 @@ TEST_F(CompressionTest, DecompressInvalidData)
     auto [result, success] = compression_manager.decompress(invalid_data, 100);
 
     // Expect INVALID_DATA error because the data is invalid
-    EXPECT_EQ(success, CompressionError::INVALID_DATA);
+    EXPECT_EQ(success, CompressionResult::INVALID_DATA);
 }
 
 // Test decompression with too small buffer
@@ -166,7 +166,7 @@ TEST_F(CompressionTest, DecompressTooSmallBuffer)
     // Compress it
     auto [compressed, compress_success] =
         compression_manager.compress(input, 6);
-    EXPECT_EQ(compress_success, CompressionError::SUCCESS);
+    EXPECT_EQ(compress_success, CompressionResult::SUCCESS);
 
     // Try to decompress with a too-small buffer size
     auto [result, decompress_success] =
@@ -174,7 +174,7 @@ TEST_F(CompressionTest, DecompressTooSmallBuffer)
                                        10); // Buffer size too small
 
     // This should fail with BUFFER_TOO_SMALL error
-    EXPECT_EQ(decompress_success, CompressionError::BUFFER_TOO_SMALL);
+    EXPECT_EQ(decompress_success, CompressionResult::BUFFER_TOO_SMALL);
 }
 
 } // namespace tests

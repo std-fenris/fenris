@@ -114,17 +114,17 @@ bool ConnectionManager::connect()
 
 bool ConnectionManager::perform_key_exchange()
 {
-    auto [private_key, public_key, keygen_error] =
+    auto [private_key, public_key, keygen_result] =
         m_crypto_manager->generate_ecdh_keypair();
-    if (keygen_error != crypto::ECDHError::SUCCESS) {
+    if (keygen_result != crypto::ECDHResult::SUCCESS) {
         m_logger->error("Failed to generate ECDH key pair");
         return false;
     }
 
     // Send public key to server
-    NetworkError send_result =
+    NetworkResult send_result =
         send_prefixed_data(m_server_socket, public_key, m_non_blocking_mode);
-    if (send_result != NetworkError::SUCCESS) {
+    if (send_result != NetworkResult::SUCCESS) {
         m_logger->error("Failed to send public key: {}",
                         static_cast<int>(send_result));
         return false;
@@ -133,28 +133,28 @@ bool ConnectionManager::perform_key_exchange()
     // Receive server's public key
     std::vector<uint8_t> server_public_key;
 
-    NetworkError recv_result = receive_prefixed_data(m_server_socket,
-                                                     server_public_key,
-                                                     m_non_blocking_mode);
-    if (recv_result != NetworkError::SUCCESS) {
+    NetworkResult recv_result = receive_prefixed_data(m_server_socket,
+                                                      server_public_key,
+                                                      m_non_blocking_mode);
+    if (recv_result != NetworkResult::SUCCESS) {
         m_logger->error("Failed to receive server public key: {}",
                         static_cast<int>(recv_result));
         return false;
     }
 
     // Compute shared secret
-    auto [shared_secret, ss_error] =
+    auto [shared_secret, ss_result] =
         m_crypto_manager->compute_ecdh_shared_secret(private_key,
                                                      server_public_key);
-    if (ss_error != crypto::ECDHError::SUCCESS) {
+    if (ss_result != crypto::ECDHResult::SUCCESS) {
         m_logger->error("Failed to compute ECDH shared secret");
         return false;
     }
 
     // Derive encryption key from shared secret
-    auto [derived_key, key_derive_error] =
+    auto [derived_key, key_derive_result] =
         m_crypto_manager->derive_key_from_shared_secret(shared_secret, 16);
-    if (key_derive_error != crypto::ECDHError::SUCCESS) {
+    if (key_derive_result != crypto::ECDHResult::SUCCESS) {
         m_logger->error("Failed to derive encryption key");
         return false;
     }
@@ -203,14 +203,16 @@ bool ConnectionManager::send_request(const fenris::Request &request)
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(m_socket_mutex);
-
     std::vector<uint8_t> serialized_request = serialize_request(request);
+    NetworkResult send_result;
 
-    NetworkError send_result = send_prefixed_data(m_server_socket,
-                                                  serialized_request,
-                                                  m_non_blocking_mode);
-    if (send_result != NetworkError::SUCCESS) {
+    {
+        std::lock_guard<std::mutex> lock(m_socket_mutex);
+        send_result = send_prefixed_data(m_server_socket,
+                                         serialized_request,
+                                         m_non_blocking_mode);
+    }
+    if (send_result != NetworkResult::SUCCESS) {
         m_logger->error("Error sending request data: {}",
                         static_cast<int>(send_result));
         m_connected = false;
@@ -227,19 +229,21 @@ std::optional<fenris::Response> ConnectionManager::receive_response()
         return std::nullopt;
     }
 
-    std::lock_guard<std::mutex> lock(m_socket_mutex);
-
     std::vector<uint8_t> serialized_response;
+    NetworkResult recv_result;
 
-    NetworkError recv_result = receive_prefixed_data(m_server_socket,
-                                                     serialized_response,
-                                                     m_non_blocking_mode);
-    if (recv_result != NetworkError::SUCCESS) {
+    {
+        std::lock_guard<std::mutex> lock(m_socket_mutex);
+        recv_result = receive_prefixed_data(m_server_socket,
+                                            serialized_response,
+                                            m_non_blocking_mode);
+    }
+    if (recv_result != NetworkResult::SUCCESS) {
         m_logger->error("Error receiving response data: {}",
                         static_cast<int>(recv_result));
 
         // If we received a disconnection, update our connection status
-        if (recv_result == NetworkError::DISCONNECTED) {
+        if (recv_result == NetworkResult::DISCONNECTED) {
             m_logger->warn("Server disconnected while receiving response data");
         }
 
