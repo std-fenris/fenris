@@ -27,7 +27,8 @@ using namespace common::crypto;
 ConnectionManager::ConnectionManager(const std::string &hostname,
                                      const std::string &port,
                                      const std::string &logger_name)
-    : m_server_handler(nullptr), m_non_blocking_mode(false), m_connected(false)
+    : m_server_hostname(hostname), m_server_port(port),
+      m_non_blocking_mode(false), m_server_socket(-1), m_connected(false)
 {
     m_logger = get_logger(logger_name);
     m_server_info.address = hostname;
@@ -191,12 +192,6 @@ void ConnectionManager::disconnect()
 bool ConnectionManager::is_connected() const
 {
     return m_connected;
-}
-
-void ConnectionManager::set_server_handler(
-    std::unique_ptr<ServerHandler> handler)
-{
-    m_server_handler = std::move(handler);
 }
 
 const std::vector<uint8_t> &ConnectionManager::get_encryption_key() const

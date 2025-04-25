@@ -1,7 +1,6 @@
 #ifndef FENRIS_CLIENT_CONNECTION_MANAGER_HPP
 #define FENRIS_CLIENT_CONNECTION_MANAGER_HPP
 
-#include "client/client.hpp"
 #include "common/crypto_manager.hpp"
 #include "common/logging.hpp"
 #include "fenris.pb.h"
@@ -17,9 +16,14 @@
 namespace fenris {
 namespace client {
 
-using ServerInfo = fenris::client::ServerInfo;
-
-class ServerHandler;
+struct ServerInfo {
+    uint32_t server_id;
+    uint32_t socket;
+    std::string address;
+    std::string port;
+    std::string current_directory;
+    std::vector<uint8_t> encryption_key;
+};
 
 /**
  * @class ConnectionManager
@@ -64,12 +68,6 @@ class ConnectionManager {
     void disconnect();
 
     /**
-     * @brief Set handler for server responses
-     * @param handler Function that processes server responses
-     */
-    void set_server_handler(std::unique_ptr<ServerHandler> handler);
-
-    /**
      * @brief Send a request to the server
      * @param request The request to send
      * @return true if send successful, false otherwise
@@ -108,31 +106,14 @@ class ConnectionManager {
      */
     bool perform_key_exchange();
 
-    std::unique_ptr<ServerHandler> m_server_handler;
+    std::string m_server_hostname;
+    std::string m_server_port;
     bool m_non_blocking_mode;
     std::atomic<bool> m_connected{false};
     std::mutex m_socket_mutex;
     ServerInfo m_server_info;
     common::crypto::CryptoManager m_crypto_manager;
     common::Logger m_logger;
-};
-
-/**
- * @class ServerHandler
- * @brief Interface for handling server responses
- *
- * Implement this interface to process responses from the server
- */
-class ServerHandler {
-  public:
-    virtual ~ServerHandler() = default;
-
-    /**
-     * @brief Process server responses
-     * @param response The deserialized Protocol Buffer response
-     * @return true if the connection should remain open, false to close
-     */
-    virtual bool handle_response(const fenris::Response &response) = 0;
 };
 
 } // namespace client
