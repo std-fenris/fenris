@@ -7,6 +7,26 @@ namespace fenris {
 namespace common {
 namespace compress {
 
+std::string compression_error_to_string(CompressionResult result)
+{
+    switch (result) {
+    case CompressionResult::SUCCESS:
+        return "success";
+    case CompressionResult::INVALID_LEVEL:
+        return "invalid compression level";
+    case CompressionResult::COMPRESSION_FAILED:
+        return "compression operation failed";
+    case CompressionResult::DECOMPRESSION_FAILED:
+        return "decompression operation failed";
+    case CompressionResult::BUFFER_TOO_SMALL:
+        return "buffer too small for operation";
+    case CompressionResult::INVALID_DATA:
+        return "invalid compressed data";
+    default:
+        return "unrecognized compression result";
+    }
+}
+
 /**
  * Helper function to convert zlib error codes to CompressionResult values
  */
@@ -52,8 +72,9 @@ CompressionManager::compress(const std::vector<uint8_t> &input, int level)
                                 input.size(),
                                 level);
     if (zlib_result != Z_OK) {
-        CompressionResult error = zlib_error_to_compression_result(zlib_result);
-        return {std::vector<uint8_t>(), error};
+        CompressionResult result =
+            zlib_error_to_compression_result(zlib_result);
+        return {std::vector<uint8_t>(), result};
     }
 
     // Resize the result to the actual compressed size
@@ -78,8 +99,9 @@ CompressionManager::decompress(const std::vector<uint8_t> &input,
                                  input.data(),
                                  input.size());
     if (zlib_result != Z_OK) {
-        CompressionResult error = zlib_error_to_compression_result(zlib_result);
-        return {std::vector<uint8_t>(), error};
+        CompressionResult result =
+            zlib_error_to_compression_result(zlib_result);
+        return {std::vector<uint8_t>(), result};
     }
 
     // Resize the result to the actual decompressed size

@@ -31,6 +31,22 @@ enum class ECDHResult {
     INVALID_KEY_SIZE,
 };
 
+/**
+ * Convert EncryptionResult to string representation
+ *
+ * @param result EncryptionResult to convert
+ * @return String representation of the result
+ */
+std::string encryption_result_to_string(EncryptionResult result);
+
+/**
+ * Convert ECDHResult to string representation
+ *
+ * @param result ECDHResult to convert
+ * @return String representation of the result
+ */
+std::string ecdh_result_to_string(ECDHResult result);
+
 // Constants
 constexpr size_t AES_GCM_TAG_SIZE =
     16; // 16 bytes (128 bits) authentication tag

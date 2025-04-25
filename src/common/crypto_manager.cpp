@@ -211,6 +211,44 @@ CryptoManager::derive_key_from_shared_secret(
     }
 }
 
+std::string encryption_result_to_string(EncryptionResult result)
+{
+    switch (result) {
+    case EncryptionResult::SUCCESS:
+        return "success";
+    case EncryptionResult::INVALID_KEY_SIZE:
+        return "invalid key size";
+    case EncryptionResult::INVALID_IV_SIZE:
+        return "invalid initialization vector size";
+    case EncryptionResult::INVALID_DATA:
+        return "invalid data";
+    case EncryptionResult::ENCRYPTION_FAILED:
+        return "encryption operation failed";
+    case EncryptionResult::DECRYPTION_FAILED:
+        return "decryption operation failed";
+    default:
+        return "unrecognized encryption result";
+    }
+}
+
+std::string ecdh_result_to_string(ECDHResult result)
+{
+    switch (result) {
+    case ECDHResult::SUCCESS:
+        return "success";
+    case ECDHResult::KEY_GENERATION_FAILED:
+        return "key generation failed";
+    case ECDHResult::SHARED_SECRET_FAILED:
+        return "shared secret computation failed";
+    case ECDHResult::KEY_DERIVATION_FAILED:
+        return "key derivation failed";
+    case ECDHResult::INVALID_KEY_SIZE:
+        return "invalid key size";
+    default:
+        return "unrecognized ECDH result";
+    }
+}
+
 } // namespace crypto
 } // namespace common
 } // namespace fenris

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -21,6 +22,14 @@ enum class CompressionResult {
     BUFFER_TOO_SMALL,
     INVALID_DATA
 };
+
+/**
+ * Convert CompressionResult to string representation
+ *
+ * @param result CompressionResult to convert
+ * @return String representation of the result
+ */
+std::string compression_result_to_string(CompressionResult result);
 
 /**
  * @class ICompressionManager

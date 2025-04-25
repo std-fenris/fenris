@@ -152,13 +152,15 @@ bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
     auto [private_key, public_key, keygen_result] =
         crypto_manager.generate_ecdh_keypair();
     if (keygen_result != crypto::ECDHResult::SUCCESS) {
-        std::cerr << "Failed to generate client ECDH keypair" << std::endl;
+        std::cerr << "Failed to generate client ECDH keypair: "
+                  << ecdh_result_to_string(keygen_result) << std::endl;
         return false;
     }
 
     NetworkResult send_result = send_prefixed_data(sock, public_key);
     if (send_result != NetworkResult::SUCCESS) {
-        std::cerr << "Failed to send client public key" << std::endl;
+        std::cerr << "Failed to send client public key: "
+                  << network_result_to_string(send_result) << std::endl;
         return false;
     }
 
@@ -166,7 +168,8 @@ bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
     NetworkResult receive_result =
         receive_prefixed_data(sock, server_public_key);
     if (receive_result != NetworkResult::SUCCESS) {
-        std::cerr << "Failed to receive server public key" << std::endl;
+        std::cerr << "Failed to receive server public key: "
+                  << network_result_to_string(receive_result) << std::endl;
         return false;
     }
 
@@ -174,14 +177,16 @@ bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
         crypto_manager.compute_ecdh_shared_secret(private_key,
                                                   server_public_key);
     if (ss_result != crypto::ECDHResult::SUCCESS) {
-        std::cerr << "Failed to compute shared secret" << std::endl;
+        std::cerr << "Failed to compute shared secret: "
+                  << ecdh_result_to_string(ss_result) << std::endl;
         return false;
     }
 
     auto [derived_key, key_derive_result] =
         crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
     if (key_derive_result != crypto::ECDHResult::SUCCESS) {
-        std::cerr << "Failed to derive key from shared secret" << std::endl;
+        std::cerr << "Failed to derive key from shared secret: "
+                  << ecdh_result_to_string(key_derive_result) << std::endl;
         return false;
     }
 
@@ -277,7 +282,6 @@ class ServerConnectionManagerTest : public ::testing::Test {
                                    SO_ERROR,
                                    &err,
                                    &len);
-
                         if (!err) {
                             FAIL() << "Connection succeeded; server may not be "
                                       "fully stopped.";

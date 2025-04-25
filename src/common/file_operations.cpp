@@ -10,8 +10,37 @@ namespace fs = std::filesystem;
 namespace fenris {
 namespace common {
 
+std::string file_error_to_string(FileOperationResult result)
+{
+    switch (result) {
+    case FileOperationResult::SUCCESS:
+        return "success";
+    case FileOperationResult::FILE_NOT_FOUND:
+        return "file not found";
+    case FileOperationResult::PERMISSION_DENIED:
+        return "permission denied";
+    case FileOperationResult::PATH_NOT_EXIST:
+        return "path does not exist";
+    case FileOperationResult::FILE_ALREADY_EXISTS:
+        return "file already exists";
+    case FileOperationResult::DIRECTORY_NOT_EMPTY:
+        return "directory not empty";
+    case FileOperationResult::IO_ERROR:
+        return "i/o error";
+    case FileOperationResult::INVALID_PATH:
+        return "invalid path";
+    case FileOperationResult::DIRECTORY_ALREADY_EXISTS:
+        return "directory already exists";
+    case FileOperationResult::UNKNOWN_ERROR:
+        return "unknown error";
+    default:
+        return "unrecognized error";
+    }
+}
+
 // Rename function for consistency
-FileOperationResult system_error_to_file_operation_result(const std::error_code &ec)
+FileOperationResult
+system_error_to_file_operation_result(const std::error_code &ec)
 {
     if (!ec) {
         return FileOperationResult::SUCCESS;
@@ -71,7 +100,7 @@ read_file(const std::string &filepath)
 }
 
 FileOperationResult write_file(const std::string &filepath,
-                     const std::vector<uint8_t> &data)
+                               const std::vector<uint8_t> &data)
 {
     std::error_code ec;
 
@@ -118,7 +147,7 @@ FileOperationResult write_file(const std::string &filepath,
 }
 
 FileOperationResult append_file(const std::string &filepath,
-                      const std::vector<uint8_t> &data)
+                                const std::vector<uint8_t> &data)
 {
     std::error_code ec;
 
@@ -220,7 +249,8 @@ FileOperationResult delete_file(const std::string &filepath)
     return FileOperationResult::SUCCESS;
 }
 
-std::pair<fs::file_status, FileOperationResult> get_file_info(const std::string &filepath)
+std::pair<fs::file_status, FileOperationResult>
+get_file_info(const std::string &filepath)
 {
     std::error_code ec;
     fs::file_status status = fs::status(filepath, ec);
@@ -361,7 +391,8 @@ std::pair<std::string, FileOperationResult> get_current_directory()
     return {current_path.string(), FileOperationResult::SUCCESS};
 }
 
-FileOperationResult rename_path(const std::string &oldpath, const std::string &newpath)
+FileOperationResult rename_path(const std::string &oldpath,
+                                const std::string &newpath)
 {
     std::error_code ec;
 
@@ -381,7 +412,8 @@ FileOperationResult rename_path(const std::string &oldpath, const std::string &n
     return FileOperationResult::SUCCESS;
 }
 
-FileOperationResult copy_file(const std::string &source, const std::string &destination)
+FileOperationResult copy_file(const std::string &source,
+                              const std::string &destination)
 {
     std::error_code ec;
 
@@ -400,7 +432,8 @@ FileOperationResult copy_file(const std::string &source, const std::string &dest
     return FileOperationResult::SUCCESS;
 }
 
-std::pair<uintmax_t, FileOperationResult> get_file_size(const std::string &filepath)
+std::pair<uintmax_t, FileOperationResult>
+get_file_size(const std::string &filepath)
 {
     std::error_code ec;
 

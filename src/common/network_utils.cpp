@@ -13,6 +13,28 @@ namespace fenris {
 namespace common {
 namespace network {
 
+std::string network_result_to_string(NetworkResult result)
+{
+    switch (result) {
+    case NetworkResult::SUCCESS:
+        return "success";
+    case NetworkResult::DISCONNECTED:
+        return "peer disconnected";
+    case NetworkResult::CONNECTION_REFUSED:
+        return "connection refused by peer";
+    case NetworkResult::SOCKET_ERROR:
+        return "socket error";
+    case NetworkResult::SEND_ERROR:
+        return "error during send operation";
+    case NetworkResult::RECEIVE_ERROR:
+        return "error during receive operation";
+    case NetworkResult::ALLOCATION_ERROR:
+        return "memory allocation error";
+    default:
+        return "unrecognized network error";
+    }
+}
+
 NetworkResult send_data(uint32_t fd,
                         const std::vector<uint8_t> &data,
                         uint32_t len,

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <unistd.h>
 #include <vector>
 
@@ -25,6 +26,14 @@ enum class NetworkResult {
     RECEIVE_ERROR,      // Error occurred during receive operation
     ALLOCATION_ERROR,   // Error allocating memory
 };
+
+/**
+ * Convert NetworkResult to string representation
+ *
+ * @param result NetworkResult to convert
+ * @return String representation of the result
+ */
+std::string network_result_to_string(NetworkResult result);
 
 /**
  * @brief Sends size of the data to be sent over the socket.

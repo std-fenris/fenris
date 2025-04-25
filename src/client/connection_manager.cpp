@@ -22,6 +22,7 @@ namespace client {
 using ServerInfo = fenris::client::ServerInfo;
 using namespace common;
 using namespace common::network;
+using namespace common::crypto;
 
 ConnectionManager::ConnectionManager(const std::string &hostname,
                                      const std::string &port,
@@ -31,7 +32,7 @@ ConnectionManager::ConnectionManager(const std::string &hostname,
       m_server_socket(-1), m_connected(false)
 {
     m_logger = get_logger(logger_name);
-    m_crypto_manager = std::make_unique<common::crypto::CryptoManager>();
+    m_crypto_manager = std::make_unique<CryptoManager>();
 }
 
 ConnectionManager::~ConnectionManager()
@@ -48,7 +49,7 @@ bool ConnectionManager::connect()
 {
     // Don't reconnect if already connected
     if (m_connected) {
-        m_logger->warn("Already connected to server");
+        m_logger->warn("already connected to server");
         return true;
     }
 
@@ -99,12 +100,12 @@ bool ConnectionManager::connect()
 
     m_connected = true;
 
-    m_logger->info("Connected to server {}:{}",
+    m_logger->info("connected to server {}:{}",
                    m_server_hostname,
                    m_server_port);
 
     if (!perform_key_exchange()) {
-        m_logger->error("Key exchange with server failed");
+        m_logger->error("key exchange with server failed");
         disconnect();
         return false;
     }
@@ -116,8 +117,9 @@ bool ConnectionManager::perform_key_exchange()
 {
     auto [private_key, public_key, keygen_result] =
         m_crypto_manager->generate_ecdh_keypair();
-    if (keygen_result != crypto::ECDHResult::SUCCESS) {
-        m_logger->error("Failed to generate ECDH key pair");
+    if (keygen_result != ECDHResult::SUCCESS) {
+        m_logger->error("failed to generate ECDH key pair: {}",
+                        ecdh_result_to_string(keygen_result));
         return false;
     }
 
@@ -125,8 +127,8 @@ bool ConnectionManager::perform_key_exchange()
     NetworkResult send_result =
         send_prefixed_data(m_server_socket, public_key, m_non_blocking_mode);
     if (send_result != NetworkResult::SUCCESS) {
-        m_logger->error("Failed to send public key: {}",
-                        static_cast<int>(send_result));
+        m_logger->error("failed to send public key: {}",
+                        network_result_to_string(send_result));
         return false;
     }
 
@@ -137,8 +139,8 @@ bool ConnectionManager::perform_key_exchange()
                                                       server_public_key,
                                                       m_non_blocking_mode);
     if (recv_result != NetworkResult::SUCCESS) {
-        m_logger->error("Failed to receive server public key: {}",
-                        static_cast<int>(recv_result));
+        m_logger->error("failed to receive server public key: {}",
+                        network_result_to_string(recv_result));
         return false;
     }
 
@@ -146,8 +148,9 @@ bool ConnectionManager::perform_key_exchange()
     auto [shared_secret, ss_result] =
         m_crypto_manager->compute_ecdh_shared_secret(private_key,
                                                      server_public_key);
-    if (ss_result != crypto::ECDHResult::SUCCESS) {
-        m_logger->error("Failed to compute ECDH shared secret");
+    if (ss_result != ECDHResult::SUCCESS) {
+        m_logger->error("failed to compute ECDH shared secret: {}",
+                        ecdh_result_to_string(ss_result));
         return false;
     }
 
@@ -155,7 +158,8 @@ bool ConnectionManager::perform_key_exchange()
     auto [derived_key, key_derive_result] =
         m_crypto_manager->derive_key_from_shared_secret(shared_secret, 16);
     if (key_derive_result != crypto::ECDHResult::SUCCESS) {
-        m_logger->error("Failed to derive encryption key");
+        m_logger->error("Failed to derive encryption key: {}",
+                        ecdh_result_to_string(key_derive_result));
         return false;
     }
 
@@ -176,7 +180,7 @@ void ConnectionManager::disconnect()
     }
 
     if (m_connected.exchange(false)) {
-        m_logger->info("Disconnecting from server");
+        m_logger->info("disconnecting from server");
     }
 }
 
@@ -199,7 +203,7 @@ const std::vector<uint8_t> &ConnectionManager::get_encryption_key() const
 bool ConnectionManager::send_request(const fenris::Request &request)
 {
     if (!m_connected || m_server_socket == -1) {
-        m_logger->error("Cannot send request: not connected to server");
+        m_logger->error("cannot send request: not connected to server");
         return false;
     }
 
@@ -213,8 +217,8 @@ bool ConnectionManager::send_request(const fenris::Request &request)
                                          m_non_blocking_mode);
     }
     if (send_result != NetworkResult::SUCCESS) {
-        m_logger->error("Error sending request data: {}",
-                        static_cast<int>(send_result));
+        m_logger->error("failed to send request: {}",
+                        network_result_to_string(send_result));
         m_connected = false;
         return false;
     }
@@ -225,7 +229,7 @@ bool ConnectionManager::send_request(const fenris::Request &request)
 std::optional<fenris::Response> ConnectionManager::receive_response()
 {
     if (!m_connected || m_server_socket == -1) {
-        m_logger->error("Cannot receive response: not connected to server");
+        m_logger->error("cannot receive response: not connected to server");
         return std::nullopt;
     }
 
@@ -239,12 +243,12 @@ std::optional<fenris::Response> ConnectionManager::receive_response()
                                             m_non_blocking_mode);
     }
     if (recv_result != NetworkResult::SUCCESS) {
-        m_logger->error("Error receiving response data: {}",
-                        static_cast<int>(recv_result));
+        m_logger->error("error receiving response data: {}",
+                        network_result_to_string(recv_result));
 
         // If we received a disconnection, update our connection status
         if (recv_result == NetworkResult::DISCONNECTED) {
-            m_logger->warn("Server disconnected while receiving response data");
+            m_logger->warn("server disconnected while receiving response data");
         }
 
         m_connected = false;
