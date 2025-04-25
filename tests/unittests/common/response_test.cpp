@@ -194,7 +194,7 @@ TEST(ResponseTest, InvalidData)
 
     // Default values should be present
     EXPECT_EQ(deserialized.type(),
-              fenris::ResponseType::FILE_INFO); // First enum value
+              fenris::ResponseType::PONG); // First enum value
     EXPECT_FALSE(deserialized.success());
     EXPECT_TRUE(deserialized.error_message().empty());
     EXPECT_TRUE(deserialized.data().empty());

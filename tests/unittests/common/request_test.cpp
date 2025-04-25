@@ -102,8 +102,8 @@ TEST(RequestTest, InvalidData)
     // This should not crash, but may return an empty or default Request object
     fenris::Request deserialized = deserialize_request(invalid_data);
 
-    // Default command value should be the first enum value (CREATE_FILE)
-    EXPECT_EQ(deserialized.command(), fenris::RequestType::CREATE_FILE);
+    // Default command value should be the first enum value (PING)
+    EXPECT_EQ(deserialized.command(), fenris::RequestType::PING);
     EXPECT_TRUE(deserialized.filename().empty());
     EXPECT_EQ(deserialized.ip_addr(), 0);
     EXPECT_TRUE(deserialized.data().empty());
