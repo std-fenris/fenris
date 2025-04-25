@@ -1,7 +1,9 @@
 #ifndef FENRIS_CLIENT_REQUEST_MANAGER_HPP
 #define FENRIS_CLIENT_REQUEST_MANAGER_HPP
 
+#include "common/logging.hpp"
 #include "fenris.pb.h"
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -19,7 +21,7 @@ class RequestManager {
     /**
      * @brief Default constructor
      */
-    RequestManager() = default;
+    RequestManager() : m_logger(common::get_logger("ClientRequestManager")) {}
 
     /**
      * @brief Generate a Request object from command line arguments
@@ -30,6 +32,7 @@ class RequestManager {
     generate_request(const std::vector<std::string> &args);
 
   private:
+    common::Logger m_logger; // Added logger member
     // Maps string command names to RequestType enum values
     const std::unordered_map<std::string, fenris::RequestType> m_command_map = {
         {"ping", fenris::RequestType::PING},
