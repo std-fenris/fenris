@@ -40,6 +40,7 @@ TUI::TUI() : curr_dir("/")
         {"rm", "Remove a file (rm <file>)"},
         {"info", "Display file information (info <file>)"},
         {"mkdir", "Create a new directory (mkdir <directory>)"},
+        {"cd", "Change the current directory (cd <directory>)"},
         {"rmdir", "Remove a directory (rmdir <directory>)"},
         {"help", "Display available commands (help)"},
         {"exit", "Exit the client (exit)"}};
@@ -143,6 +144,7 @@ bool TUI::validate_command(const std::vector<std::string> &command_parts)
                         {"rm", {1, 1}},
                         {"info", {1, 1}},
                         {"mkdir", {1, 1}},
+                        {"cd", {1, 1}},
                         {"rmdir", {1, 1}},
                         {"help", {0, 0}},
                         {"exit", {0, 0}}};
