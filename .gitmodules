@@ -10,6 +10,10 @@
 	path = vendor/zlib
 	url = https://github.com/madler/zlib
 
+[submodule "vendor/argparse"]
+	path = vendor/argparse
+	url = https://github.com/p-ranav/argparse.git
+
 [submodule "tests/googletest"]
 	path = tests/googletest
 	url = https://github.com/google/googletest
