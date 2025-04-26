@@ -26,8 +26,19 @@ target_link_libraries(fenris_client
     fenris_common
 )
 
+# Client executable
+add_executable(client main.cpp)
+
+# Link libraries to the client executable
+target_link_libraries(client
+    PRIVATE
+    fenris_client
+    fenris_common
+    fenris_proto
+)
+
 # Install the client executable
-install(TARGETS fenris_client
+install(TARGETS client
     RUNTIME DESTINATION bin
 )
 
