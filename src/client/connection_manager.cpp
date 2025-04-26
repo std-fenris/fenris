@@ -220,12 +220,9 @@ bool ConnectionManager::perform_key_exchange()
 void ConnectionManager::disconnect()
 {
 
-    {
-        std::lock_guard<std::mutex> lock(m_socket_mutex);
-        if (m_server_info.socket != -1) {
-            close(m_server_info.socket);
-            m_server_info.socket = -1;
-        }
+    if (m_server_info.socket != -1) {
+        close(m_server_info.socket);
+        m_server_info.socket = -1;
     }
 
     if (m_connected.exchange(false)) {
