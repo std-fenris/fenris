@@ -249,17 +249,60 @@ FileOperationResult delete_file(const std::string &filepath)
     return FileOperationResult::SUCCESS;
 }
 
-std::pair<fs::file_status, FileOperationResult>
+std::pair<fenris::FileInfo, FileOperationResult>
 get_file_info(const std::string &filepath)
 {
     std::error_code ec;
-    fs::file_status status = fs::status(filepath, ec);
+    FileInfo file_info;
 
-    if (ec) {
-        return {status, system_error_to_file_operation_result(ec)};
+    // Check if file exists
+    if (!fs::exists(filepath, ec)) {
+        return {file_info, FileOperationResult::FILE_NOT_FOUND};
     }
 
-    return {status, FileOperationResult::SUCCESS};
+    // Set file name
+    file_info.set_name(filepath);
+
+    // Set file size (for regular files)
+    if (fs::is_regular_file(filepath, ec)) {
+        if (ec) {
+            return {file_info, system_error_to_file_operation_result(ec)};
+        }
+
+        uintmax_t size = fs::file_size(filepath, ec);
+        if (ec) {
+            return {file_info, system_error_to_file_operation_result(ec)};
+        }
+        file_info.set_size(size);
+    } else {
+        // For directories or other types, size is 0
+        file_info.set_size(0);
+    }
+
+    // Check if it's a directory
+    file_info.set_is_directory(fs::is_directory(filepath, ec));
+    if (ec) {
+        return {file_info, system_error_to_file_operation_result(ec)};
+    }
+
+    // Get last modified time
+    auto last_write = fs::last_write_time(filepath, ec);
+    if (ec) {
+        return {file_info, system_error_to_file_operation_result(ec)};
+    }
+    file_info.set_modified_time(last_write.time_since_epoch().count());
+
+    // Get permissions
+    fs::file_status status = fs::status(filepath, ec);
+    if (ec) {
+        return {file_info, system_error_to_file_operation_result(ec)};
+    }
+    auto perms = status.permissions();
+    file_info.set_permissions(static_cast<uint32_t>(
+        perms &
+        (fs::perms::owner_all | fs::perms::group_all | fs::perms::others_all)));
+
+    return {file_info, FileOperationResult::SUCCESS};
 }
 
 bool file_exists(const std::string &filepath)
@@ -334,29 +377,35 @@ FileOperationResult delete_directory(const std::string &dirpath, bool recursive)
     return FileOperationResult::SUCCESS;
 }
 
-std::pair<std::vector<std::string>, FileOperationResult>
+std::pair<std::vector<fenris::FileInfo>, FileOperationResult>
 list_directory(const std::string &dirpath)
 {
     std::vector<std::string> entries;
     std::error_code ec;
+    std::vector<fenris::FileInfo> file_info_list;
 
     if (!fs::exists(dirpath, ec)) {
-        return {entries, FileOperationResult::FILE_NOT_FOUND};
+        return {file_info_list, FileOperationResult::FILE_NOT_FOUND};
     }
 
     if (!fs::is_directory(dirpath, ec)) {
-        return {entries, FileOperationResult::INVALID_PATH};
+        return {file_info_list, FileOperationResult::INVALID_PATH};
     }
 
     for (const auto &entry : fs::directory_iterator(dirpath, ec)) {
         entries.push_back(entry.path().filename().string());
     }
 
-    if (ec) {
-        return {entries, system_error_to_file_operation_result(ec)};
+    for (const auto &entry : entries) {
+        std::string full_path = (fs::path(dirpath) / entry).string();
+        auto [file_info, result] = get_file_info(full_path);
+        if (result != FileOperationResult::SUCCESS) {
+            return {file_info_list, result};
+        }
+        file_info_list.push_back(file_info);
     }
 
-    return {entries, FileOperationResult::SUCCESS};
+    return {file_info_list, FileOperationResult::SUCCESS};
 }
 
 FileOperationResult change_directory(const std::string &dirpath)

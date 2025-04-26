@@ -204,17 +204,20 @@ TEST_F(FileOperationsTest, GetFileInfo)
 
     create_test_file(filename, "Test file for info check");
 
-    auto [status, error] = get_file_info(filepath);
+    auto [file_info, error] = get_file_info(filepath);
     EXPECT_EQ(error, FileOperationResult::SUCCESS);
-    EXPECT_TRUE(fs::is_regular_file(status));
+    EXPECT_EQ(file_info.name(), filepath);
+    EXPECT_FALSE(file_info.is_directory());
+    EXPECT_EQ(file_info.size(), 24); // "Test file for info check" length
 
     // Get info for directory
-    auto [dir_status, dir_error] = get_file_info(test_dir.string());
+    auto [dir_info, dir_error] = get_file_info(test_dir.string());
     EXPECT_EQ(dir_error, FileOperationResult::SUCCESS);
-    EXPECT_TRUE(fs::is_directory(dir_status));
+    EXPECT_EQ(dir_info.name(), test_dir.string());
+    EXPECT_TRUE(dir_info.is_directory());
 
     // Get info for non-existent file
-    auto [invalid_status, invalid_error] =
+    auto [invalid_info, invalid_error] =
         get_file_info(filepath + ".nonexistent");
     EXPECT_EQ(invalid_error, FileOperationResult::FILE_NOT_FOUND);
 }
@@ -308,31 +311,46 @@ TEST_F(FileOperationsTest, ListDirectory)
     fs::create_directory(test_dir / "subdir2");
 
     // List directory contents
-    auto [entries, error] = list_directory(test_dir.string());
+    auto [file_infos, error] = list_directory(test_dir.string());
     EXPECT_EQ(error, FileOperationResult::SUCCESS);
-    EXPECT_EQ(entries.size(), 4);
+    EXPECT_EQ(file_infos.size(), 4);
 
-    // Verify entries
-    EXPECT_TRUE(std::find(entries.begin(), entries.end(), "file1.txt") !=
-                entries.end());
-    EXPECT_TRUE(std::find(entries.begin(), entries.end(), "file2.txt") !=
-                entries.end());
-    EXPECT_TRUE(std::find(entries.begin(), entries.end(), "subdir1") !=
-                entries.end());
-    EXPECT_TRUE(std::find(entries.begin(), entries.end(), "subdir2") !=
-                entries.end());
+    // Verify entries by checking names in the FileInfo objects
+    std::vector<std::string> file_names;
+    for (const auto &info : file_infos) {
+        file_names.push_back(fs::path(info.name()).filename().string());
+    }
+
+    EXPECT_TRUE(std::find(file_names.begin(), file_names.end(), "file1.txt") !=
+                file_names.end());
+    EXPECT_TRUE(std::find(file_names.begin(), file_names.end(), "file2.txt") !=
+                file_names.end());
+    EXPECT_TRUE(std::find(file_names.begin(), file_names.end(), "subdir1") !=
+                file_names.end());
+    EXPECT_TRUE(std::find(file_names.begin(), file_names.end(), "subdir2") !=
+                file_names.end());
+
+    // Check that directory flag is correctly set
+    for (const auto &info : file_infos) {
+        std::string name = fs::path(info.name()).filename().string();
+        if (name == "subdir1" || name == "subdir2") {
+            EXPECT_TRUE(info.is_directory());
+        } else {
+            EXPECT_FALSE(info.is_directory());
+        }
+    }
 
     // List contents of non-existent directory
-    auto [invalid_entries, invalid_error] =
+    auto [invalid_infos, invalid_error] =
         list_directory((test_dir / "nonexistent").string());
     EXPECT_EQ(invalid_error, FileOperationResult::FILE_NOT_FOUND);
-    EXPECT_TRUE(invalid_entries.empty());
+    EXPECT_TRUE(invalid_infos.empty());
 
     // List a file as a directory
-    auto [file_entries, file_error] =
+    auto [file_infos_error, file_error] =
         list_directory((test_dir / "file1.txt").string());
     EXPECT_EQ(file_error, FileOperationResult::INVALID_PATH);
-    EXPECT_TRUE(file_entries.empty());
+    EXPECT_TRUE(file_infos_error.empty());
 }
 
 // Test changing directory
