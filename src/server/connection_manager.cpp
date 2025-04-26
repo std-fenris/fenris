@@ -31,7 +31,6 @@ ConnectionManager::ConnectionManager(const std::string &hostname,
       m_non_blocking_mode(false)
 {
     m_logger = get_logger(logger_name);
-    m_crypto_manager = std::make_unique<CryptoManager>();
 }
 
 ConnectionManager::~ConnectionManager()
@@ -262,7 +261,7 @@ bool ConnectionManager::perform_key_exchange(
     std::vector<uint8_t> &encryption_key)
 {
     auto [private_key, public_key, keygen_result] =
-        m_crypto_manager->generate_ecdh_keypair();
+        m_crypto_manager.generate_ecdh_keypair();
     if (keygen_result != ECDHResult::SUCCESS) {
         m_logger->error("failed to generate ECDH key pair: {}",
                         ecdh_result_to_string(keygen_result));
@@ -291,8 +290,8 @@ bool ConnectionManager::perform_key_exchange(
 
     // Compute shared secret
     auto [shared_secret, ss_result] =
-        m_crypto_manager->compute_ecdh_shared_secret(private_key,
-                                                     server_public_key);
+        m_crypto_manager.compute_ecdh_shared_secret(private_key,
+                                                    server_public_key);
     if (ss_result != ECDHResult::SUCCESS) {
         m_logger->error("failed to compute ECDH shared secret: {}",
                         ecdh_result_to_string(ss_result));
@@ -301,7 +300,8 @@ bool ConnectionManager::perform_key_exchange(
 
     // Derive encryption key from shared secret
     auto [derived_key, key_derive_result] =
-        m_crypto_manager->derive_key_from_shared_secret(shared_secret, 16);
+        m_crypto_manager.derive_key_from_shared_secret(shared_secret,
+                                                       AES_GCM_KEY_SIZE);
     if (key_derive_result != ECDHResult::SUCCESS) {
         m_logger->error("failed to derive encryption key: {}",
                         ecdh_result_to_string(key_derive_result));
@@ -338,40 +338,18 @@ void ConnectionManager::handle_client(uint32_t client_socket,
     // Process client requests
     while (m_running && keep_connection) {
 
-        std::vector<uint8_t> request_data;
-        NetworkResult recv_result = receive_prefixed_data(client_socket,
-                                                          request_data,
-                                                          m_non_blocking_mode);
-        if (recv_result != NetworkResult::SUCCESS) {
-            m_logger->error("failed to receive request data from client: {}",
-                            network_result_to_string(recv_result));
+        auto request_opt = receive_request(client_info);
+        if (!request_opt.has_value()) {
+            m_logger->error("failed to receive request from client");
             break;
         }
 
-        Request request;
-        try {
-            request = deserialize_request(request_data);
-        } catch (const std::exception &e) {
-            m_logger->error("exception while parsing request: {}", e.what());
-            break;
-        }
-
-        auto response =
-            m_client_handler->handle_request(client_socket, request);
+        auto response = m_client_handler->handle_request(client_socket,
+                                                         request_opt.value());
         keep_connection = response.second;
 
-        std::vector<uint8_t> response_data = serialize_response(response.first);
-        if (response_data.empty()) {
-            m_logger->error("failed to serialize response");
-            break;
-        }
-
-        NetworkResult send_result = send_prefixed_data(client_socket,
-                                                       response_data,
-                                                       m_non_blocking_mode);
-        if (send_result != NetworkResult::SUCCESS) {
-            m_logger->error("failed to send response data to client: {}",
-                            network_result_to_string(send_result));
+        if (!send_response(client_info, response.first)) {
+            m_logger->error("failed to send response to client");
             break;
         }
     }
@@ -389,6 +367,95 @@ void ConnectionManager::remove_client(uint32_t client_id)
 {
     std::lock_guard<std::mutex> lock(m_client_mutex);
     m_client_sockets.erase(client_id);
+}
+
+bool ConnectionManager::send_response(const ClientInfo &client_info,
+                                      const fenris::Response &response)
+{
+    // Serialize the response
+    std::vector<uint8_t> serialized_response = serialize_response(response);
+
+    // Generate random IV
+    auto [iv, iv_gen_result] = m_crypto_manager.generate_random_iv();
+    if (iv_gen_result != crypto::EncryptionResult::SUCCESS) {
+        m_logger->error("failed to generate IV: {}",
+                        crypto::encryption_result_to_string(iv_gen_result));
+        return false;
+    }
+
+    // Encrypt the serialized response using client's key and generated IV
+    auto [encrypted_response, encrypt_result] =
+        m_crypto_manager.encrypt_data(serialized_response,
+                                      client_info.encryption_key,
+                                      iv);
+    if (encrypt_result != crypto::EncryptionResult::SUCCESS) {
+        m_logger->error("failed to encrypt response: {}",
+                        crypto::encryption_result_to_string(encrypt_result));
+        return false;
+    }
+
+    // Create the final message with IV prefixed to encrypted data
+    std::vector<uint8_t> message_with_iv;
+    message_with_iv.reserve(iv.size() + encrypted_response.size());
+    message_with_iv.insert(message_with_iv.end(), iv.begin(), iv.end());
+    message_with_iv.insert(message_with_iv.end(),
+                           encrypted_response.begin(),
+                           encrypted_response.end());
+
+    // Send the IV-prefixed encrypted response
+    NetworkResult send_result = send_prefixed_data(client_info.socket,
+                                                   message_with_iv,
+                                                   m_non_blocking_mode);
+    if (send_result != NetworkResult::SUCCESS) {
+        m_logger->error("failed to send encrypted response: {}",
+                        network_result_to_string(send_result));
+        return false;
+    }
+
+    return true;
+}
+
+std::optional<fenris::Request>
+ConnectionManager::receive_request(const ClientInfo &client_info)
+{
+    // Receive encrypted data (includes IV + encrypted request)
+    std::vector<uint8_t> encrypted_data;
+    NetworkResult recv_result = receive_prefixed_data(client_info.socket,
+                                                      encrypted_data,
+                                                      m_non_blocking_mode);
+
+    if (recv_result != NetworkResult::SUCCESS) {
+        m_logger->error("failed to receive request: {}",
+                        network_result_to_string(recv_result));
+        return std::nullopt;
+    }
+
+    if (encrypted_data.size() < AES_GCM_IV_SIZE) {
+        m_logger->error("received data too small to contain IV");
+        return std::nullopt;
+    }
+
+    // Extract IV from the beginning of the message
+    std::vector<uint8_t> iv(encrypted_data.begin(),
+                            encrypted_data.begin() + AES_GCM_IV_SIZE);
+
+    // Extract the encrypted request data (after the IV)
+    std::vector<uint8_t> encrypted_request(encrypted_data.begin() +
+                                               AES_GCM_IV_SIZE,
+                                           encrypted_data.end());
+
+    // Decrypt the request using client's key and extracted IV
+    auto [decrypted_data, decrypt_result] =
+        m_crypto_manager.decrypt_data(encrypted_request,
+                                      client_info.encryption_key,
+                                      iv);
+    if (decrypt_result != crypto::EncryptionResult::SUCCESS) {
+        m_logger->error("failed to decrypt request: {}",
+                        crypto::encryption_result_to_string(decrypt_result));
+        return std::nullopt;
+    }
+
+    return deserialize_request(decrypted_data);
 }
 
 } // namespace server

@@ -115,7 +115,8 @@ TEST(ECDHTest, CompleteFlow)
     EXPECT_EQ(alice_shared_error, ECDHResult::SUCCESS);
 
     auto [alice_key, alice_derive_error] =
-        crypto_manager.derive_key_from_shared_secret(alice_shared, 32);
+        crypto_manager.derive_key_from_shared_secret(alice_shared,
+                                                     AES_GCM_KEY_SIZE);
     EXPECT_EQ(alice_derive_error, ECDHResult::SUCCESS);
 
     // Generate a random IV for AES-GCM
@@ -138,7 +139,8 @@ TEST(ECDHTest, CompleteFlow)
     EXPECT_EQ(bob_shared_error, ECDHResult::SUCCESS);
 
     auto [bob_key, bob_derive_error] =
-        crypto_manager.derive_key_from_shared_secret(bob_shared, 32);
+        crypto_manager.derive_key_from_shared_secret(bob_shared,
+                                                     AES_GCM_KEY_SIZE);
     EXPECT_EQ(bob_derive_error, ECDHResult::SUCCESS);
 
     // Verify that both sides derived the same key and IV

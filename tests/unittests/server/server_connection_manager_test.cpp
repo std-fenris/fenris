@@ -183,7 +183,8 @@ bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
     }
 
     auto [derived_key, key_derive_result] =
-        crypto_manager.derive_key_from_shared_secret(shared_secret, 16);
+        crypto_manager.derive_key_from_shared_secret(shared_secret,
+                                                     crypto::AES_GCM_KEY_SIZE);
     if (key_derive_result != crypto::ECDHResult::SUCCESS) {
         std::cerr << "Failed to derive key from shared secret: "
                   << ecdh_result_to_string(key_derive_result) << std::endl;
@@ -192,6 +193,89 @@ bool perform_client_key_exchange(int sock, std::vector<uint8_t> &shared_key)
 
     shared_key = derived_key;
     return true;
+}
+
+bool send_request(const ClientInfo &client_info, const fenris::Request &request)
+{
+    crypto::CryptoManager m_crypto_manager;
+
+    std::vector<uint8_t> serialized_request = serialize_request(request);
+
+    // Generate a random IV
+    auto [iv, iv_gen_result] = m_crypto_manager.generate_random_iv();
+    if (iv_gen_result != crypto::EncryptionResult::SUCCESS) {
+        std::cerr << "failed to generate random IV" << std::endl;
+        return false;
+    }
+
+    // Encrypt the serialized request
+    auto [encrypted_request, encrypt_result] =
+        m_crypto_manager.encrypt_data(serialized_request,
+                                      client_info.encryption_key,
+                                      iv);
+    if (encrypt_result != crypto::EncryptionResult::SUCCESS) {
+        std::cerr << "failed to encrypt request: "
+                  << encryption_result_to_string(encrypt_result) << std::endl;
+        return false;
+    }
+
+    // Create the final message with IV prefixed to encrypted data
+    std::vector<uint8_t> message_with_iv;
+    message_with_iv.reserve(iv.size() + encrypted_request.size());
+    message_with_iv.insert(message_with_iv.end(), iv.begin(), iv.end());
+    message_with_iv.insert(message_with_iv.end(),
+                           encrypted_request.begin(),
+                           encrypted_request.end());
+
+    // Send the IV-prefixed encrypted request
+    NetworkResult send_result =
+        send_prefixed_data(client_info.socket, message_with_iv);
+    if (send_result != NetworkResult::SUCCESS) {
+        std::cerr << "failed to send request: "
+                  << network_result_to_string(send_result) << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+std::optional<fenris::Response> receive_response(const ClientInfo &client_info)
+{
+    crypto::CryptoManager m_crypto_manager;
+
+    // Receive encrypted data (includes IV + encrypted response)
+    std::vector<uint8_t> encrypted_data;
+    NetworkResult recv_result =
+        receive_prefixed_data(client_info.socket, encrypted_data);
+    if (recv_result != NetworkResult::SUCCESS) {
+        return std::nullopt;
+    }
+
+    if (encrypted_data.size() < crypto::AES_GCM_IV_SIZE) {
+        return std::nullopt;
+    }
+
+    // Extract IV from the beginning of the message
+    std::vector<uint8_t> iv(encrypted_data.begin(),
+                            encrypted_data.begin() + crypto::AES_GCM_IV_SIZE);
+
+    // Extract the encrypted response data (after the IV)
+    std::vector<uint8_t> encrypted_response(encrypted_data.begin() +
+                                                crypto::AES_GCM_IV_SIZE,
+                                            encrypted_data.end());
+
+    // Decrypt the response using the extracted IV
+    auto [decrypted_data, decrypt_result] =
+        m_crypto_manager.decrypt_data(encrypted_response,
+                                      client_info.encryption_key,
+                                      iv);
+
+    if (decrypt_result != crypto::EncryptionResult::SUCCESS) {
+        return std::nullopt;
+    }
+
+    // Deserialize the response
+    return deserialize_response(decrypted_data);
 }
 
 class ServerConnectionManagerTest : public ::testing::Test {
@@ -230,78 +314,39 @@ class ServerConnectionManagerTest : public ::testing::Test {
         m_client_sockets.clear();
     }
 
-    int connect_test_client()
+    ClientInfo connect_test_client()
     {
         int client_sock = create_and_connect_client_socket("127.0.0.1", m_port);
+        std::vector<uint8_t> shared_key;
+
         if (client_sock >= 0) {
             m_client_sockets.push_back(client_sock);
 
-            std::vector<uint8_t> shared_key;
             if (!perform_client_key_exchange(client_sock, shared_key)) {
                 std::cerr << "Key exchange failed during test client connection"
                           << std::endl;
                 close(client_sock);
                 m_client_sockets.pop_back();
-                return -1;
+                return ClientInfo{};
             }
             std::cout << "Key exchange successful for client socket: "
                       << client_sock << std::endl;
         }
-        return client_sock;
-    }
 
-    void safe_stop_server()
-    {
-        if (m_connection_manager) {
-            m_connection_manager->stop();
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        ClientInfo client_info;
+        client_info.client_id = m_client_sockets.size();
+        client_info.socket = client_sock;
+        client_info.encryption_key = std::vector<uint8_t>(shared_key);
+        client_info.address = "127.0.0.1";
+        client_info.port = m_port_str;
 
-            int test_socket = socket(AF_INET, SOCK_STREAM, 0);
-            if (test_socket >= 0) {
-                int flags = fcntl(test_socket, F_GETFL);
-                fcntl(test_socket, F_SETFL, flags | O_NONBLOCK);
+        std::cout << "Client connected with ID: " << client_info.client_id
+                  << std::endl;
 
-                sockaddr_in server_addr{};
-                server_addr.sin_family = AF_INET;
-                server_addr.sin_port = htons(m_port);
-                inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
-
-                int result = connect(test_socket,
-                                     reinterpret_cast<sockaddr *>(&server_addr),
-                                     sizeof(server_addr));
-
-                if (result < 0 && errno == EINPROGRESS) {
-                    for (int i = 0; i < 5; i++) {
-                        std::this_thread::sleep_for(
-                            std::chrono::milliseconds(50));
-
-                        int err = 0;
-                        socklen_t len = sizeof(err);
-                        getsockopt(test_socket,
-                                   SOL_SOCKET,
-                                   SO_ERROR,
-                                   &err,
-                                   &len);
-                        if (!err) {
-                            FAIL() << "Connection succeeded; server may not be "
-                                      "fully stopped.";
-                            break;
-                        } else if (err == ECONNREFUSED || err == ETIMEDOUT) {
-
-                            break;
-                        }
-                    }
-                } else if (result == 0) {
-                    FAIL() << "Connection succeeded immediately; server may "
-                              "not be fully stopped.";
-                }
-                close(test_socket);
-            }
-        }
+        return client_info;
     }
 
     std::unique_ptr<ConnectionManager> m_connection_manager;
-
     MockClientHandler *m_mock_handler_ptr = nullptr;
     int m_port;
     std::string m_port_str;
@@ -316,8 +361,6 @@ TEST_F(ServerConnectionManagerTest, StartAndStop)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    safe_stop_server();
-
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 0);
 }
 
@@ -326,8 +369,8 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    int client_sock = connect_test_client();
-    ASSERT_GE(client_sock, 0);
+    ClientInfo client = connect_test_client();
+    ASSERT_GE(client.socket, 0);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 1);
@@ -335,19 +378,14 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
     fenris::Request ping_request;
     ping_request.set_command(fenris::RequestType::PING);
 
-    std::vector<uint8_t> serialized_request = serialize_request(ping_request);
-    ASSERT_EQ(send_prefixed_data(client_sock, serialized_request),
-              NetworkResult::SUCCESS);
+    ASSERT_TRUE(send_request(client, ping_request));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    std::vector<uint8_t> received_data;
-    ASSERT_EQ(receive_prefixed_data(client_sock, received_data),
-              NetworkResult::SUCCESS);
-
-    fenris::Response response = deserialize_response(received_data);
-    ASSERT_TRUE(response.success());
-    ASSERT_EQ(response.data(), "PING");
+    auto response_opt = receive_response(client);
+    ASSERT_TRUE(response_opt.has_value());
+    ASSERT_TRUE(response_opt->success());
+    ASSERT_EQ(response_opt->data(), "PING");
 
     auto received_requests = m_mock_handler_ptr->get_received_requests();
     ASSERT_EQ(received_requests.size(), 1);
@@ -355,21 +393,14 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
 
     fenris::Request terminate_request;
     terminate_request.set_command(fenris::RequestType::TERMINATE);
-    std::vector<uint8_t> serialized_terminate_request =
-        serialize_request(terminate_request);
-    ASSERT_EQ(send_prefixed_data(client_sock, serialized_terminate_request),
-              NetworkResult::SUCCESS);
+    ASSERT_TRUE(send_request(client, terminate_request));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    std::vector<uint8_t> terminate_received_data;
-    ASSERT_EQ(receive_prefixed_data(client_sock, terminate_received_data),
-              NetworkResult::SUCCESS);
-
-    fenris::Response terminate_response =
-        deserialize_response(terminate_received_data);
-    ASSERT_TRUE(terminate_response.success());
-    ASSERT_EQ(terminate_response.data(), "TERMINATE");
+    auto terminate_response_opt = receive_response(client);
+    ASSERT_TRUE(terminate_response_opt.has_value());
+    ASSERT_TRUE(terminate_response_opt->success());
+    ASSERT_EQ(terminate_response_opt->data(), "TERMINATE");
 
     // Close client socket (will be handled by TearDown)
 }
@@ -379,25 +410,21 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    auto perform_client_exchange = [&](int sock, fenris::RequestType cmd_type) {
+    auto perform_client_exchange = [&](const ClientInfo &client_info,
+                                       fenris::RequestType cmd_type) {
         fenris::Request request;
         request.set_command(cmd_type);
         if (cmd_type == fenris::RequestType::READ_FILE) {
             request.set_filename("test.txt");
         }
 
-        std::vector<uint8_t> serialized_request = serialize_request(request);
-        ASSERT_EQ(send_prefixed_data(sock, serialized_request),
-                  NetworkResult::SUCCESS);
+        ASSERT_TRUE(send_request(client_info, request));
 
-        std::vector<uint8_t> received_data;
-        ASSERT_EQ(receive_prefixed_data(sock, received_data),
-                  NetworkResult::SUCCESS);
+        auto response_opt = receive_response(client_info);
+        ASSERT_TRUE(response_opt.has_value());
+        ASSERT_TRUE(response_opt->success());
 
-        fenris::Response response = deserialize_response(received_data);
-        ASSERT_TRUE(response.success());
-
-        ASSERT_EQ(response.data(),
+        ASSERT_EQ(response_opt->data(),
                   request.command() == fenris::RequestType::READ_FILE
                       ? "READ_FILE"
                       : (request.command() == fenris::RequestType::LIST_DIR
@@ -405,33 +432,26 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
                              : "PING"));
     };
 
-    auto terminate_client = [&](int sock) {
+    auto terminate_client = [&](const ClientInfo &client_info) {
         fenris::Request terminate_request;
         terminate_request.set_command(fenris::RequestType::TERMINATE);
-        std::vector<uint8_t> serialized_terminate_request =
-            serialize_request(terminate_request);
-        ASSERT_EQ(send_prefixed_data(sock, serialized_terminate_request),
-                  NetworkResult::SUCCESS);
+        ASSERT_TRUE(send_request(client_info, terminate_request));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        std::vector<uint8_t> terminate_received_data;
-        ASSERT_EQ(receive_prefixed_data(sock, terminate_received_data),
-                  NetworkResult::SUCCESS);
-
-        fenris::Response terminate_response =
-            deserialize_response(terminate_received_data);
-        ASSERT_TRUE(terminate_response.success());
-        ASSERT_EQ(terminate_response.data(), "TERMINATE");
+        auto response_opt = receive_response(client_info);
+        ASSERT_TRUE(response_opt.has_value());
+        ASSERT_TRUE(response_opt->success());
+        ASSERT_EQ(response_opt->data(), "TERMINATE");
     };
 
-    int client1 = connect_test_client();
-    int client2 = connect_test_client();
-    int client3 = connect_test_client();
+    ClientInfo client1 = connect_test_client();
+    ClientInfo client2 = connect_test_client();
+    ClientInfo client3 = connect_test_client();
 
-    ASSERT_GE(client1, 0);
-    ASSERT_GE(client2, 0);
-    ASSERT_GE(client3, 0);
+    ASSERT_GE(client1.socket, 0);
+    ASSERT_GE(client2.socket, 0);
+    ASSERT_GE(client3.socket, 0);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 3);
@@ -461,8 +481,8 @@ TEST_F(ServerConnectionManagerTest, ClientDisconnection)
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    int client_sock = connect_test_client();
-    ASSERT_GE(client_sock, 0);
+    ClientInfo client = connect_test_client();
+    ASSERT_GE(client.socket, 0);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 1);
@@ -470,16 +490,14 @@ TEST_F(ServerConnectionManagerTest, ClientDisconnection)
     fenris::Request ping_request;
     ping_request.set_command(fenris::RequestType::PING);
 
-    std::vector<uint8_t> serialized_request = serialize_request(ping_request);
-    ASSERT_EQ(send_prefixed_data(client_sock, serialized_request),
-              NetworkResult::SUCCESS);
+    ASSERT_TRUE(send_request(client, ping_request));
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    close(client_sock);
+    close(client.socket);
 
     m_client_sockets.erase(std::remove(m_client_sockets.begin(),
                                        m_client_sockets.end(),
-                                       client_sock),
+                                       client.socket),
                            m_client_sockets.end());
 
     bool disconnected = false;
@@ -499,43 +517,32 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    int client_sock = connect_test_client();
-    ASSERT_GE(client_sock, 0);
+    ClientInfo client = connect_test_client();
+    ASSERT_GE(client.socket, 0);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     fenris::Request read_request;
     read_request.set_command(fenris::RequestType::READ_FILE);
-
     read_request.set_filename("example.dat");
 
-    std::vector<uint8_t> serialized_read_req = serialize_request(read_request);
-    ASSERT_EQ(send_prefixed_data(client_sock, serialized_read_req),
-              NetworkResult::SUCCESS);
+    ASSERT_TRUE(send_request(client, read_request));
 
-    std::vector<uint8_t> read_response_data;
-    ASSERT_EQ(receive_prefixed_data(client_sock, read_response_data),
-              NetworkResult::SUCCESS);
-    fenris::Response read_response = deserialize_response(read_response_data);
-    ASSERT_TRUE(read_response.success());
-    ASSERT_EQ(read_response.data(), "READ_FILE");
+    auto read_response_opt = receive_response(client);
+    ASSERT_TRUE(read_response_opt.has_value());
+    ASSERT_TRUE(read_response_opt->success());
+    ASSERT_EQ(read_response_opt->data(), "READ_FILE");
 
     fenris::Request write_request;
     write_request.set_command(fenris::RequestType::WRITE_FILE);
-
     write_request.set_filename("output.log");
 
-    std::vector<uint8_t> serialized_write_req =
-        serialize_request(write_request);
-    ASSERT_EQ(send_prefixed_data(client_sock, serialized_write_req),
-              NetworkResult::SUCCESS);
+    ASSERT_TRUE(send_request(client, write_request));
 
-    std::vector<uint8_t> write_response_data;
-    ASSERT_EQ(receive_prefixed_data(client_sock, write_response_data),
-              NetworkResult::SUCCESS);
-    fenris::Response write_response = deserialize_response(write_response_data);
-    ASSERT_TRUE(write_response.success());
-    ASSERT_EQ(write_response.data(), "WRITE_FILE");
+    auto write_response_opt = receive_response(client);
+    ASSERT_TRUE(write_response_opt.has_value());
+    ASSERT_TRUE(write_response_opt->success());
+    ASSERT_EQ(write_response_opt->data(), "WRITE_FILE");
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
@@ -546,25 +553,22 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     ASSERT_EQ(received_requests[0].filename(), "example.dat");
 
     ASSERT_EQ(received_requests[1].command(), fenris::RequestType::WRITE_FILE);
-
     ASSERT_EQ(received_requests[1].filename(), "output.log");
 
     fenris::Request terminate_request;
     terminate_request.set_command(fenris::RequestType::TERMINATE);
-    std::vector<uint8_t> serialized_terminate_request =
-        serialize_request(terminate_request);
-    ASSERT_EQ(send_prefixed_data(client_sock, serialized_terminate_request),
-              NetworkResult::SUCCESS);
+    ASSERT_TRUE(send_request(client, terminate_request));
     std::cout << "Sent terminate request: " << terminate_request.DebugString()
               << std::endl;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    std::vector<uint8_t> terminate_received_data;
-    ASSERT_EQ(receive_prefixed_data(client_sock, terminate_received_data),
-              NetworkResult::SUCCESS);
-    std::cout << "Received terminate data size: "
-              << terminate_received_data.size() << std::endl;
+    auto terminate_response_opt = receive_response(client);
+    ASSERT_TRUE(terminate_response_opt.has_value());
+    ASSERT_TRUE(terminate_response_opt->success());
+    ASSERT_EQ(terminate_response_opt->data(), "TERMINATE");
+    std::cout << "Received terminate response: "
+              << terminate_response_opt->DebugString() << std::endl;
 }
 
 } // namespace tests
