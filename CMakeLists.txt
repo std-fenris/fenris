@@ -17,6 +17,10 @@ add_subdirectory(vendor/spdlog)
 set(ZLIB_BUILD_TESTING OFF)
 add_subdirectory(vendor/zlib)
 
+# ARGPARSE
+set(ARGPARSE_BUILD_TESTS OFF)
+add_subdirectory(vendor/argparse)
+
 # Setup Crypto++ as an imported library
 set(CRYPTOPP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/cryptopp)
 set(CRYPTOPP_INCLUDE_DIR ${CRYPTOPP_SOURCE_DIR})
@@ -52,7 +56,7 @@ message(STATUS "Protobuf version: ${Protobuf_VERSION}")
 add_subdirectory(proto)
 
 # Define variables for libraries to use throughout the project
-set(FENRIS_EXTERNAL_LIBS cryptopp spdlog::spdlog zlib ${PROTOBUF_LIBRARIES})
+set(FENRIS_EXTERNAL_LIBS cryptopp spdlog::spdlog zlib argparse ${PROTOBUF_LIBRARIES})
 set(FENRIS_EXTERNAL_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/vendor ${PROTOBUF_INCLUDE_DIRS})
 
 # Define release type flags
