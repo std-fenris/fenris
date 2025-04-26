@@ -288,6 +288,14 @@ class ServerConnectionManagerTest : public ::testing::Test {
 
         auto handler_ptr = std::make_unique<MockClientHandler>(true, 10);
         m_mock_handler_ptr = handler_ptr.get();
+
+        LoggingConfig config;
+        config.level = LogLevel::DEBUG;
+        config.log_file_path = "test_server_connection_manager.log";
+        config.console_logging = true;
+        config.file_logging = true;
+        initialize_logging(config, "TestServerConnectionManager");
+
         m_connection_manager =
             std::make_unique<ConnectionManager>("127.0.0.1",
                                                 m_port_str,
@@ -305,6 +313,8 @@ class ServerConnectionManagerTest : public ::testing::Test {
 
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
+
+        
 
         for (int sock : m_client_sockets) {
             if (sock >= 0) {

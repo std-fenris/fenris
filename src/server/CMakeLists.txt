@@ -6,11 +6,11 @@ verbose_message("Setting up server executable...")
 # Define server executable
 set(SERVER_SOURCES
     main.cpp
-    server.cpp
+    cache_manager.cpp
     connection_manager.cpp
     request_manager.cpp
     response_manager.cpp
-    cache_manager.cpp
+    server.cpp
 )
 
 # Create server executable

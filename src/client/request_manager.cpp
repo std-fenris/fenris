@@ -9,7 +9,6 @@ namespace client {
 std::optional<fenris::Request>
 RequestManager::generate_request(const std::vector<std::string> &args)
 {
-
     if (args.empty()) {
         m_logger->error("no command provided");
         return std::nullopt;

@@ -135,13 +135,12 @@ class ConnectionManager {
     void remove_client(uint32_t client_id);
 
     /**
-     * @brief Perform key exchange with client and save the encryption key
-     * @param client_socket Socket descriptor for the client connection
-     * @param encryption_key Reference to the encryption key to be set
+     * @brief Perform key exchange with client and save the encryption key in
+     * the client info struct
+     * @param client_info ClientInfo struct containing client connection
      * @return true if key exchange was successful, false otherwise
      */
-    bool perform_key_exchange(uint32_t client_socket,
-                              std::vector<uint8_t> &encryption_key);
+    bool perform_key_exchange(ClientInfo &client_info);
 
     std::string m_hostname;
     std::string m_port;

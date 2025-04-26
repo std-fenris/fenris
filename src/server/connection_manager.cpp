@@ -78,8 +78,7 @@ void ConnectionManager::start()
             continue;
         }
 
-        int yes = 1;
-        int rc;
+        int rc, yes = 1;
         rc = setsockopt(m_server_socket,
                         SOL_SOCKET,
                         SO_REUSEADDR,
@@ -256,9 +255,7 @@ void ConnectionManager::listen_for_connection()
     }
 }
 
-bool ConnectionManager::perform_key_exchange(
-    uint32_t client_socket,
-    std::vector<uint8_t> &encryption_key)
+bool ConnectionManager::perform_key_exchange(ClientInfo &client_info)
 {
     auto [private_key, public_key, keygen_result] =
         m_crypto_manager.generate_ecdh_keypair();
@@ -270,7 +267,7 @@ bool ConnectionManager::perform_key_exchange(
 
     // Receive client's public key
     std::vector<uint8_t> server_public_key;
-    NetworkResult recv_result = receive_prefixed_data(client_socket,
+    NetworkResult recv_result = receive_prefixed_data(client_info.socket,
                                                       server_public_key,
                                                       m_non_blocking_mode);
     if (recv_result != NetworkResult::SUCCESS) {
@@ -281,7 +278,7 @@ bool ConnectionManager::perform_key_exchange(
 
     // Send public key to client
     NetworkResult send_result =
-        send_prefixed_data(client_socket, public_key, m_non_blocking_mode);
+        send_prefixed_data(client_info.socket, public_key, m_non_blocking_mode);
     if (send_result != NetworkResult::SUCCESS) {
         m_logger->error("failed to send public key: {}",
                         network_result_to_string(send_result));
@@ -308,7 +305,7 @@ bool ConnectionManager::perform_key_exchange(
         return false;
     }
 
-    encryption_key = derived_key;
+    client_info.encryption_key = std::move(derived_key);
     return true;
 }
 
@@ -328,8 +325,9 @@ void ConnectionManager::handle_client(uint32_t client_socket,
 
     bool keep_connection = true;
 
-    if (!perform_key_exchange(client_info.socket, client_info.encryption_key)) {
-        m_logger->error("key exchange failed");
+    if (!perform_key_exchange(client_info)) {
+        m_logger->error("key exchange failed with client: {}",
+                        client_info.client_id);
         close(client_socket);
         remove_client(client_id);
         return;
@@ -340,7 +338,8 @@ void ConnectionManager::handle_client(uint32_t client_socket,
 
         auto request_opt = receive_request(client_info);
         if (!request_opt.has_value()) {
-            m_logger->error("failed to receive request from client");
+            m_logger->error("failed to receive request from client: {}",
+                            client_info.client_id);
             break;
         }
 
@@ -349,7 +348,8 @@ void ConnectionManager::handle_client(uint32_t client_socket,
         keep_connection = response.second;
 
         if (!send_response(client_info, response.first)) {
-            m_logger->error("failed to send response to client");
+            m_logger->error("failed to send response to client: {}",
+                            client_info.client_id);
             break;
         }
     }
@@ -407,7 +407,8 @@ bool ConnectionManager::send_response(const ClientInfo &client_info,
                                                    message_with_iv,
                                                    m_non_blocking_mode);
     if (send_result != NetworkResult::SUCCESS) {
-        m_logger->error("failed to send encrypted response: {}",
+        m_logger->error("failed to send encrypted response to client {}: {}",
+                        client_info.client_id,
                         network_result_to_string(send_result));
         return false;
     }
@@ -423,15 +424,15 @@ ConnectionManager::receive_request(const ClientInfo &client_info)
     NetworkResult recv_result = receive_prefixed_data(client_info.socket,
                                                       encrypted_data,
                                                       m_non_blocking_mode);
-
     if (recv_result != NetworkResult::SUCCESS) {
-        m_logger->error("failed to receive request: {}",
-                        network_result_to_string(recv_result));
+        m_logger->error("failed to receive request from client: {}",
+                        client_info.client_id);
         return std::nullopt;
     }
 
     if (encrypted_data.size() < AES_GCM_IV_SIZE) {
-        m_logger->error("received data too small to contain IV");
+        m_logger->error("received data too small to contain IV from client: {}",
+                        client_info.client_id);
         return std::nullopt;
     }
 
@@ -450,7 +451,8 @@ ConnectionManager::receive_request(const ClientInfo &client_info)
                                       client_info.encryption_key,
                                       iv);
     if (decrypt_result != crypto::EncryptionResult::SUCCESS) {
-        m_logger->error("failed to decrypt request: {}",
+        m_logger->error("failed to decrypt request from client {}: {}",
+                        client_info.client_id,
                         crypto::encryption_result_to_string(decrypt_result));
         return std::nullopt;
     }
