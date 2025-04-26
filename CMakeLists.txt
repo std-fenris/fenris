@@ -9,19 +9,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Add cmake directory to module path
 list(APPEND CMAKE_MODULE_PATH "cmake")
 
-# Set output directories for binaries directly in build folder
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
 # SPDLOG
 set(SPDLOG_ENABLE_PCH ON)
-add_subdirectory(include/external/spdlog)
+add_subdirectory(vendor/spdlog)
 
 # ZLIB
 set(ZLIB_BUILD_TESTING OFF)
-add_subdirectory(include/external/zlib)
+add_subdirectory(vendor/zlib)
 
 # Setup Crypto++ as an imported library
-set(CRYPTOPP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/external/cryptopp)
+set(CRYPTOPP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/cryptopp)
 set(CRYPTOPP_INCLUDE_DIR ${CRYPTOPP_SOURCE_DIR})
 set(CRYPTOPP_LIBRARY_DIR ${CMAKE_BINARY_DIR}/cryptopp)
 
@@ -56,7 +53,7 @@ add_subdirectory(proto)
 
 # Define variables for libraries to use throughout the project
 set(FENRIS_EXTERNAL_LIBS cryptopp spdlog::spdlog zlib ${PROTOBUF_LIBRARIES})
-set(FENRIS_EXTERNAL_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include/external ${PROTOBUF_INCLUDE_DIRS})
+set(FENRIS_EXTERNAL_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/vendor ${PROTOBUF_INCLUDE_DIRS})
 
 # Define release type flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

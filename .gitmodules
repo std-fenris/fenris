@@ -1,13 +1,13 @@
-[submodule "include/external/cryptopp"]
-	path = include/external/cryptopp
+[submodule "vendor/cryptopp"]
+	path = vendor/cryptopp
 	url = https://github.com/weidai11/cryptopp
 
-[submodule "include/external/spdlog"]
-	path = include/external/spdlog
+[submodule "vendor/spdlog"]
+	path = vendor/spdlog
 	url = https://github.com/gabime/spdlog
 
-[submodule "include/external/zlib"]
-	path = include/external/zlib
+[submodule "vendor/zlib"]
+	path = vendor/zlib
 	url = https://github.com/madler/zlib
 
 [submodule "tests/googletest"]
