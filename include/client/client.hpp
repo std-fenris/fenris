@@ -10,7 +10,7 @@ namespace client {
 
 struct ServerInfo {
     uint32_t server_id;
-    uint32_t socket;
+    int32_t socket;
     std::string address;
     std::string port;
     std::string current_directory;

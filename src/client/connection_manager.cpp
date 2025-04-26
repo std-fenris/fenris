@@ -27,11 +27,12 @@ using namespace common::crypto;
 ConnectionManager::ConnectionManager(const std::string &hostname,
                                      const std::string &port,
                                      const std::string &logger_name)
-    : m_server_hostname(hostname), m_server_port(port),
-      m_server_handler(nullptr), m_non_blocking_mode(false),
-      m_server_socket(-1), m_connected(false)
+    : m_server_handler(nullptr), m_non_blocking_mode(false), m_connected(false)
 {
     m_logger = get_logger(logger_name);
+    m_server_info.address = hostname;
+    m_server_info.port = port;
+    m_server_info.socket = -1;
 }
 
 ConnectionManager::~ConnectionManager()
@@ -57,8 +58,8 @@ bool ConnectionManager::connect()
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    int rv = getaddrinfo(m_server_hostname.c_str(),
-                         m_server_port.c_str(),
+    int rv = getaddrinfo(m_server_info.address.c_str(),
+                         m_server_info.port.c_str(),
                          &hints,
                          &servinfo);
     if (rv != 0) {
@@ -68,15 +69,17 @@ bool ConnectionManager::connect()
 
     // Loop through all the results and connect to the first we can
     for (p = servinfo; p != nullptr; p = p->ai_next) {
-        m_server_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (m_server_socket == -1) {
+        m_server_info.socket =
+            socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (m_server_info.socket == -1) {
             m_logger->error("socket creation failed: {}", strerror(errno));
             continue;
         }
 
-        int rc = ::connect(m_server_socket, p->ai_addr, p->ai_addrlen);
+        // Use socket connect instead of ConnectionManager::connect
+        int rc = ::connect(m_server_info.socket, p->ai_addr, p->ai_addrlen);
         if (rc == -1) {
-            close(m_server_socket);
+            close(m_server_info.socket);
             m_logger->error("connect failed: {}", strerror(errno));
             continue;
         }
@@ -93,15 +96,15 @@ bool ConnectionManager::connect()
 
     // Set socket to non-blocking mode if requested (for testing)
     if (m_non_blocking_mode) {
-        int flags = fcntl(m_server_socket, F_GETFL);
-        fcntl(m_server_socket, F_SETFL, flags | O_NONBLOCK);
+        int flags = fcntl(m_server_info.socket, F_GETFL);
+        fcntl(m_server_info.socket, F_SETFL, flags | O_NONBLOCK);
     }
 
     m_connected = true;
 
     m_logger->info("connected to server {}:{}",
-                   m_server_hostname,
-                   m_server_port);
+                   m_server_info.address,
+                   m_server_info.port);
 
     if (!perform_key_exchange()) {
         m_logger->error("key exchange with server failed");
@@ -123,8 +126,9 @@ bool ConnectionManager::perform_key_exchange()
     }
 
     // Send public key to server
-    NetworkResult send_result =
-        send_prefixed_data(m_server_socket, public_key, m_non_blocking_mode);
+    NetworkResult send_result = send_prefixed_data(m_server_info.socket,
+                                                   public_key,
+                                                   m_non_blocking_mode);
     if (send_result != NetworkResult::SUCCESS) {
         m_logger->error("failed to send public key: {}",
                         network_result_to_string(send_result));
@@ -134,7 +138,7 @@ bool ConnectionManager::perform_key_exchange()
     // Receive server's public key
     std::vector<uint8_t> server_public_key;
 
-    NetworkResult recv_result = receive_prefixed_data(m_server_socket,
+    NetworkResult recv_result = receive_prefixed_data(m_server_info.socket,
                                                       server_public_key,
                                                       m_non_blocking_mode);
     if (recv_result != NetworkResult::SUCCESS) {
@@ -164,7 +168,7 @@ bool ConnectionManager::perform_key_exchange()
     }
 
     // Set the derived key in the crypto manager
-    m_server_info.encryption_key = derived_key;
+    m_server_info.encryption_key = std::move(derived_key);
     return true;
 }
 
@@ -173,9 +177,9 @@ void ConnectionManager::disconnect()
 
     {
         std::lock_guard<std::mutex> lock(m_socket_mutex);
-        if (m_server_socket != -1) {
-            close(m_server_socket);
-            m_server_socket = -1;
+        if (m_server_info.socket != -1) {
+            close(m_server_info.socket);
+            m_server_info.socket = -1;
         }
     }
 
@@ -202,7 +206,7 @@ const std::vector<uint8_t> &ConnectionManager::get_encryption_key() const
 
 bool ConnectionManager::send_request(const fenris::Request &request)
 {
-    if (!m_connected || m_server_socket == -1) {
+    if (!m_connected || m_server_info.socket == -1) {
         m_logger->error("cannot send request: not connected to server");
         return false;
     }
@@ -237,7 +241,7 @@ bool ConnectionManager::send_request(const fenris::Request &request)
                            encrypted_request.end());
 
     // Send the IV-prefixed encrypted request
-    NetworkResult send_result = send_prefixed_data(m_server_socket,
+    NetworkResult send_result = send_prefixed_data(m_server_info.socket,
                                                    message_with_iv,
                                                    m_non_blocking_mode);
     if (send_result != NetworkResult::SUCCESS) {
@@ -251,14 +255,14 @@ bool ConnectionManager::send_request(const fenris::Request &request)
 
 std::optional<fenris::Response> ConnectionManager::receive_response()
 {
-    if (!m_connected || m_server_socket == -1) {
+    if (!m_connected || m_server_info.socket == -1) {
         m_logger->error("cannot receive response: not connected to server");
         return std::nullopt;
     }
 
     // Receive encrypted data (includes IV + encrypted response)
     std::vector<uint8_t> encrypted_data;
-    NetworkResult recv_result = receive_prefixed_data(m_server_socket,
+    NetworkResult recv_result = receive_prefixed_data(m_server_info.socket,
                                                       encrypted_data,
                                                       m_non_blocking_mode);
     if (recv_result != NetworkResult::SUCCESS) {

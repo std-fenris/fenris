@@ -108,11 +108,8 @@ class ConnectionManager {
      */
     bool perform_key_exchange();
 
-    std::string m_server_hostname;
-    std::string m_server_port;
     std::unique_ptr<ServerHandler> m_server_handler;
     bool m_non_blocking_mode;
-    int32_t m_server_socket{-1};
     std::atomic<bool> m_connected{false};
     std::mutex m_socket_mutex;
     ServerInfo m_server_info;
