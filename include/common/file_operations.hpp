@@ -1,6 +1,7 @@
 #ifndef FENRIS_COMMON_FILE_OPERATIONS_HPP
 #define FENRIS_COMMON_FILE_OPERATIONS_HPP
 
+#include "fenris.pb.h"
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -88,7 +89,7 @@ FileOperationResult delete_file(const std::string &filepath);
  * @param filepath Path to the file
  * @return Pair of (filesystem::file_status, FileOperationResult)
  */
-std::pair<std::filesystem::file_status, FileOperationResult>
+std::pair<fenris::FileInfo, FileOperationResult>
 get_file_info(const std::string &filepath);
 
 /**
@@ -132,7 +133,7 @@ FileOperationResult delete_directory(const std::string &dirpath,
  * @param dirpath Path of the directory to list
  * @return Pair of (vector of entry names, FileOperationResult)
  */
-std::pair<std::vector<std::string>, FileOperationResult>
+std::pair<std::vector<fenris::FileInfo>, FileOperationResult>
 list_directory(const std::string &dirpath);
 
 /**
