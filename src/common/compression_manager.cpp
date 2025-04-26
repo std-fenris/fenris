@@ -54,10 +54,6 @@ CompressionResult zlib_error_to_compression_result(int zlib_error)
 std::pair<std::vector<uint8_t>, CompressionResult>
 CompressionManager::compress(const std::vector<uint8_t> &input, int level)
 {
-    if (input.empty()) {
-        return {std::vector<uint8_t>(), CompressionResult::SUCCESS};
-    }
-
     if (level < 0 || level > 9) {
         return {std::vector<uint8_t>(), CompressionResult::INVALID_LEVEL};
     }
@@ -86,10 +82,6 @@ std::pair<std::vector<uint8_t>, CompressionResult>
 CompressionManager::decompress(const std::vector<uint8_t> &input,
                                size_t original_size)
 {
-    if (input.empty()) {
-        return {std::vector<uint8_t>(), CompressionResult::SUCCESS};
-    }
-
     // Prepare output buffer based on expected original size
     uLongf decompressed_size = original_size;
     std::vector<uint8_t> decompressed_data(original_size);

@@ -9,7 +9,7 @@ namespace common {
 
 namespace {
 // Static map for logger instances
-std::unordered_map<std::string, std::shared_ptr<spdlog::logger>> loggers;
+std::unordered_map<std::string, Logger> loggers;
 
 // Static map for level to string conversion
 const std::unordered_map<LogLevel, std::string> level_to_string_map = {

@@ -23,12 +23,7 @@ std::vector<uint8_t> serialize_response(const fenris::Response &response)
 fenris::Response deserialize_response(const std::vector<uint8_t> &data)
 {
     fenris::Response response;
-
-    if (data.empty()) {
-        // Handle empty data
-        return response;
-    }
-
+    
     // Convert vector<uint8_t> to string
     std::string serialized(data.begin(), data.end());
 

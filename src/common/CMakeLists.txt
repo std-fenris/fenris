@@ -9,9 +9,9 @@ set(
     crypto_manager.cpp
     file_operations.cpp
     logging.cpp
+    network_utils.cpp
     request.cpp
     response.cpp
-    network_utils.cpp
     ${PROTO_SRCS}
 )
 
