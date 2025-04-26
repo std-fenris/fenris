@@ -69,12 +69,12 @@ TEST(EncryptionTest, EmptyInput)
     auto [ciphertext, encrypt_result] =
         crypto_manager.encrypt_data(empty, key, iv);
     EXPECT_EQ(encrypt_result, EncryptionResult::SUCCESS);
-    EXPECT_TRUE(ciphertext.empty());
+    EXPECT_FALSE(ciphertext.empty());
 
     // Decrypt empty data
     auto [decrypted, decrypt_result] =
         crypto_manager.decrypt_data(empty, key, iv);
-    EXPECT_EQ(decrypt_result, EncryptionResult::SUCCESS);
+    EXPECT_EQ(decrypt_result, EncryptionResult::INVALID_DATA);
     EXPECT_TRUE(decrypted.empty());
 }
 

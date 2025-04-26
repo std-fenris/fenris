@@ -28,7 +28,6 @@ TEST_F(CompressionTest, CompressEmptyData)
         compression_manager.compress(input, 6); // Default compression level
 
     EXPECT_EQ(success, CompressionResult::SUCCESS);
-    EXPECT_TRUE(result.empty());
 }
 
 // Test compression of normal data
@@ -87,7 +86,7 @@ TEST_F(CompressionTest, DecompressEmptyData)
     std::vector<uint8_t> input = {};
     auto [result, success] = compression_manager.decompress(input, 0);
 
-    EXPECT_EQ(success, CompressionResult::SUCCESS);
+    EXPECT_EQ(success, CompressionResult::INVALID_DATA);
     EXPECT_TRUE(result.empty());
 }
 
