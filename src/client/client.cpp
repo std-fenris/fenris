@@ -11,9 +11,9 @@ namespace client {
 using namespace common;
 
 Client::Client(const std::string &logger_name)
-    : m_connection_manager(nullptr), m_tui(), m_request_manager(),
-      m_response_manager(), m_logger(get_logger(logger_name)),
-      m_exit_requested(false)
+    : m_connection_manager(nullptr), m_tui(std::make_unique<TUI>()),
+      m_request_manager(), m_response_manager(),
+      m_logger(get_logger(logger_name)), m_exit_requested(false)
 {
     m_logger->info("fenris client initialized");
 }
@@ -145,6 +145,13 @@ bool Client::process_command(const std::vector<std::string> &command_parts)
 void Client::run()
 {
     m_logger->info("fenris client starting");
+
+    // Check if TUI is properly initialized
+    if (!m_tui) {
+        m_logger->error("TUI not initialized, cannot run client");
+        m_exit_requested = true;
+        return;
+    }
 
     // Main application loop
     while (!m_exit_requested) {
