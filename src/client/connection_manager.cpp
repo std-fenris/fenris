@@ -28,7 +28,7 @@ ConnectionManager::ConnectionManager(const std::string &hostname,
                                      const std::string &port,
                                      const std::string &logger_name)
     : m_server_hostname(hostname), m_server_port(port),
-      m_non_blocking_mode(false), m_server_socket(-1), m_connected(false)
+      m_non_blocking_mode(false), m_connected(false)
 {
     m_logger = get_logger(logger_name);
     m_server_info.address = hostname;
