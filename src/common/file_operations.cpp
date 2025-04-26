@@ -71,10 +71,10 @@ system_error_to_file_operation_result(const std::error_code &ec)
     }
 }
 
-std::pair<std::vector<uint8_t>, FileOperationResult>
+std::pair<std::string, FileOperationResult>
 read_file(const std::string &filepath)
 {
-    std::vector<uint8_t> content;
+    std::string content;
     std::error_code ec;
     if (!fs::exists(filepath, ec)) {
         return {content, FileOperationResult::FILE_NOT_FOUND};
@@ -92,15 +92,15 @@ read_file(const std::string &filepath)
 
     content.resize(static_cast<size_t>(file_size));
 
-    if (!file.read(reinterpret_cast<char *>(content.data()), file_size)) {
-        return {std::vector<uint8_t>(), FileOperationResult::IO_ERROR};
+    if (!file.read(content.data(), file_size)) {
+        return {"", FileOperationResult::IO_ERROR};
     }
 
     return {content, FileOperationResult::SUCCESS};
 }
 
 FileOperationResult write_file(const std::string &filepath,
-                               const std::vector<uint8_t> &data)
+                               const std::string &data)
 {
     std::error_code ec;
 
@@ -139,7 +139,7 @@ FileOperationResult write_file(const std::string &filepath,
         return FileOperationResult::IO_ERROR;
     }
 
-    if (!file.write(reinterpret_cast<const char *>(data.data()), data.size())) {
+    if (!file.write(data.data(), data.size())) {
         return FileOperationResult::IO_ERROR;
     }
 
@@ -147,7 +147,7 @@ FileOperationResult write_file(const std::string &filepath,
 }
 
 FileOperationResult append_file(const std::string &filepath,
-                                const std::vector<uint8_t> &data)
+                                const std::string &data)
 {
     std::error_code ec;
 
@@ -178,7 +178,7 @@ FileOperationResult append_file(const std::string &filepath,
         return FileOperationResult::IO_ERROR;
     }
 
-    if (!file.write(reinterpret_cast<const char *>(data.data()), data.size())) {
+    if (!file.write(data.data(), data.size())) {
         return FileOperationResult::IO_ERROR;
     }
 
