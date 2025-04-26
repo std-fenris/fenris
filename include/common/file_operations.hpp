@@ -43,7 +43,7 @@ std::string file_operation_result_to_string(FileOperationResult result);
  * @param filepath Path to the file to read
  * @return Pair of (file content as vector of bytes, FileOperationResult)
  */
-std::pair<std::vector<uint8_t>, FileOperationResult>
+std::pair<std::string, FileOperationResult>
 read_file(const std::string &filepath);
 
 /**
@@ -55,7 +55,7 @@ read_file(const std::string &filepath);
  * @return FileOperationResult indicating success or failure
  */
 FileOperationResult write_file(const std::string &filepath,
-                               const std::vector<uint8_t> &data);
+                               const std::string &data);
 
 /**
  * Append data to a file (the file must exist)
@@ -65,7 +65,7 @@ FileOperationResult write_file(const std::string &filepath,
  * @return FileOperationResult indicating success or failure
  */
 FileOperationResult append_file(const std::string &filepath,
-                                const std::vector<uint8_t> &data);
+                                const std::string &data);
 
 /**
  * Create a new empty file
