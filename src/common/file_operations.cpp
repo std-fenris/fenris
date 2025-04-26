@@ -10,7 +10,7 @@ namespace fs = std::filesystem;
 namespace fenris {
 namespace common {
 
-std::string file_error_to_string(FileOperationResult result)
+std::string file_operation_result_to_string(FileOperationResult result)
 {
     switch (result) {
     case FileOperationResult::SUCCESS:
