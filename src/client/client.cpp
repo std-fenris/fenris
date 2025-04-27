@@ -34,19 +34,28 @@ bool Client::connect_to_server()
         return true;
     }
 
-    // Get server IP from user
-    std::string server_ip = m_tui->get_server_IP();
-    ;
-    // Default port for Fenris server
-    std::string server_port = m_tui->get_port_number();
-
     // Create a new connection manager if needed
     if (!m_connection_manager) {
         m_connection_manager =
-            std::make_unique<ConnectionManager>(server_ip,
-                                                server_port,
-                                                "ClientConnectionManager");
+            std::make_unique<ConnectionManager>("ClientConnectionManager");
     }
+
+    // Check if we need to get server details from user
+    if (!m_connection_manager->has_connection_info()) {
+        // Get server IP from user
+        std::string server_ip = m_tui->get_server_IP();
+        // Default port for Fenris server
+        std::string server_port = m_tui->get_port_number();
+
+        // Set the connection info
+        m_connection_manager->set_connection_info(server_ip, server_port);
+
+        m_logger->info("using server at {}:{}", server_ip, server_port);
+    }
+
+    // Get the current connection info for logging
+    std::string server_ip = m_connection_manager->get_server_info().address;
+    std::string server_port = m_connection_manager->get_server_info().port;
 
     // Attempt to connect
     m_logger->info("attempting to connect to server at {}:{}",
@@ -59,13 +68,16 @@ bool Client::connect_to_server()
                        server_ip,
                        server_port);
         m_tui->display_result(true, "connected to server");
-        ;
     } else {
         m_logger->error("failed to connect to server at {}:{}",
                         server_ip,
                         server_port);
-        m_tui->display_result(false, "failed to connect to server");
-        ;
+        m_tui->display_result(false,
+                              "Failed to connect to server. Please try a "
+                              "different address or port.");
+
+        // Reset connection info to force user to re-enter server details
+        m_connection_manager->reset_connection_info();
     }
 
     return success;
@@ -85,21 +97,21 @@ bool Client::process_command(const std::vector<std::string> &command_parts)
 
     if (command_parts[0] == "help") {
         m_tui->display_help();
-        ;
+
         return true;
     }
 
     auto request_opt = m_request_manager.generate_request(command_parts);
     if (!request_opt.has_value()) {
         m_tui->display_result(false, "Invalid command or arguments");
-        ;
+
         return true;
     }
 
     if (!m_connection_manager->send_request(request_opt.value())) {
         m_logger->error("failed to send request to server");
         m_tui->display_result(false, "Failed to send request to server");
-        ;
+
         return true;
     }
 
@@ -107,7 +119,7 @@ bool Client::process_command(const std::vector<std::string> &command_parts)
     if (!response_opt.has_value()) {
         m_logger->error("failed to receive response from server");
         m_tui->display_result(false, "Failed to receive response from server");
-        ;
+
         return true;
     }
 
@@ -123,7 +135,6 @@ bool Client::process_command(const std::vector<std::string> &command_parts)
     // Display formatted results to user
     for (size_t i = 1; i < formatted_response.size(); ++i) {
         m_tui->display_result(success, formatted_response[i]);
-        ;
     }
 
     // If no results were returned beyond the status, show a generic message
@@ -136,7 +147,6 @@ bool Client::process_command(const std::vector<std::string> &command_parts)
     // Update current directory if it was a cd command that succeeded
     if (command_parts[0] == "cd" && success && command_parts.size() > 1) {
         m_tui->update_current_directory(command_parts[1]);
-        ;
     }
 
     return true;
@@ -167,7 +177,6 @@ void Client::run()
         try {
             // Get command from user
             auto command_parts = m_tui->get_command();
-            ;
 
             // Process command and check if we should continue
             if (!process_command(command_parts)) {
@@ -181,7 +190,6 @@ void Client::run()
         } catch (...) {
             m_logger->error("unknown exception during command processing");
             m_tui->display_result(false, "Unknown internal error occurred");
-            ;
         }
     }
 
@@ -190,7 +198,6 @@ void Client::run()
         m_connection_manager->disconnect();
         m_logger->info("disconnected from server");
         m_tui->display_result(true, "Disconnected from server");
-        ;
     }
 
     m_logger->info("fenris client exiting");

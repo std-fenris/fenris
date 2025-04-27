@@ -35,6 +35,16 @@ struct ServerInfo {
 class ConnectionManager {
   public:
     /**
+     * @brief Constructor without server information
+     * @param logger_name Name for this connection manager's logger
+     *
+     * When using this constructor, set_connection_info() must be called
+     * before attempting to connect to a server.
+     */
+    explicit ConnectionManager(
+        const std::string &logger_name = "ClientConnectionManager");
+
+    /**
      * @brief Constructor
      * @param server_hostname The hostname or IP address of the server
      * @param server_port The port the server is listening on
@@ -55,6 +65,20 @@ class ConnectionManager {
      * @param enabled Whether to enable non-blocking mode
      */
     void set_non_blocking_mode(bool enabled);
+
+    /**
+     * @brief Check if connection information (hostname/port) is set
+     * @return true if connection information is set, false otherwise
+     */
+    bool has_connection_info() const;
+
+    /**
+     * @brief Set connection information (hostname/port)
+     * @param hostname The hostname or IP address of the server
+     * @param port The port the server is listening on
+     */
+    void set_connection_info(const std::string &hostname,
+                             const std::string &port);
 
     /**
      * @brief Connect to the server
@@ -99,6 +123,17 @@ class ConnectionManager {
      */
     const std::vector<uint8_t> &get_encryption_key() const;
 
+    /**
+     * @brief Get server info structure
+     * @return Reference to the current server info
+     */
+    const ServerInfo &get_server_info() const;
+
+    /**
+     * @brief Reset connection information, forcing user to re-enter it
+     */
+    void reset_connection_info();
+
   private:
     /**
      * @brief Perform key exchange with server and save the encryption key
@@ -106,10 +141,9 @@ class ConnectionManager {
      */
     bool perform_key_exchange();
 
-    std::string m_server_hostname;
-    std::string m_server_port;
     bool m_non_blocking_mode;
     std::atomic<bool> m_connected{false};
+    std::atomic<bool> m_has_connection_info{false};
     std::mutex m_socket_mutex;
     ServerInfo m_server_info;
     common::crypto::CryptoManager m_crypto_manager;
