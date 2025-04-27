@@ -51,41 +51,6 @@ bool parse_arguments(argparse::ArgumentParser &program, int argc, char *argv[])
     }
 }
 
-/**
- * Configure and initialize logging system based on command line arguments
- */
-bool configure_logging(const argparse::ArgumentParser &program)
-{
-    fenris::common::LoggingConfig logging_config;
-    std::string log_level = program.get("--log-level");
-
-    // Convert string log level to enum
-    if (log_level == "trace") {
-        logging_config.level = fenris::common::LogLevel::TRACE;
-    } else if (log_level == "debug") {
-        logging_config.level = fenris::common::LogLevel::DEBUG;
-    } else if (log_level == "info") {
-        logging_config.level = fenris::common::LogLevel::INFO;
-    } else if (log_level == "warn") {
-        logging_config.level = fenris::common::LogLevel::WARN;
-    } else if (log_level == "error") {
-        logging_config.level = fenris::common::LogLevel::ERROR;
-    } else if (log_level == "critical") {
-        logging_config.level = fenris::common::LogLevel::CRITICAL;
-    } else if (log_level == "off") {
-        logging_config.level = fenris::common::LogLevel::OFF;
-    } else {
-        std::cerr << "Invalid log level: " << log_level << std::endl;
-        return false;
-    }
-
-    logging_config.console_logging = !program.get<bool>("--no-console-log");
-    logging_config.file_logging = program.get<bool>("--file-log");
-    logging_config.log_file_path = program.get("--log-file");
-
-    return fenris::common::initialize_logging(logging_config, "fenris_client");
-}
-
 std::unique_ptr<fenris::client::Client>
 create_client(const argparse::ArgumentParser &program)
 {
@@ -96,11 +61,29 @@ create_client(const argparse::ArgumentParser &program)
     std::string host = program.get("--host");
     std::string port = program.get("--port");
 
-    auto connection_manager =
-        std::make_unique<fenris::client::ConnectionManager>(
-            host,
-            port,
-            "fenris_client_connection");
+    std::unique_ptr<fenris::client::ConnectionManager> connection_manager;
+
+    // Check if host is provided through command line arguments
+    // If using default values, use the no-parameter constructor to prompt user
+    // later
+    bool is_host_from_args = program.is_used("--host");
+    bool is_port_from_args = program.is_used("--port");
+
+    if (is_host_from_args || is_port_from_args) {
+        // At least one parameter was explicitly provided, use the constructor
+        // with parameters
+        connection_manager =
+            std::make_unique<fenris::client::ConnectionManager>(
+                host,
+                port,
+                "fenris_client_connection");
+    } else {
+        // No parameters were provided, use the default constructor
+        connection_manager =
+            std::make_unique<fenris::client::ConnectionManager>(
+                "fenris_client_connection");
+    }
+
     client->set_connection_manager(std::move(connection_manager));
 
     return client;
@@ -115,7 +98,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (!configure_logging(program)) {
+    if (!fenris::common::configure_logging(program)) {
         std::cerr << "Failed to initialize logging system" << std::endl;
         return 1;
     }
