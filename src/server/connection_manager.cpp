@@ -4,8 +4,8 @@
 #include "common/request.hpp"
 #include "common/response.hpp"
 #include "fenris.pb.h"
+#include "server/fenris_server_struct.hpp"
 #include "server/request_manager.hpp"
-#include "server/server.hpp"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -313,9 +313,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
                                       uint32_t client_id)
 {
 
-    ClientInfo client_info;
-    client_info.client_id = client_id;
-    client_info.socket = client_socket;
+    ClientInfo client_info(client_id, client_socket);
 
     // Set client socket to non-blocking if server is in non-blocking mode
     if (m_non_blocking_mode) {
@@ -343,8 +341,8 @@ void ConnectionManager::handle_client(uint32_t client_socket,
             break;
         }
 
-        auto response = m_client_handler->handle_request(client_socket,
-                                                         request_opt.value());
+        auto response =
+            m_client_handler->handle_request(request_opt.value(), client_info);
         keep_connection = response.second;
 
         if (!send_response(client_info, response.first)) {

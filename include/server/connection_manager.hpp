@@ -19,17 +19,6 @@
 namespace fenris {
 namespace server {
 
-struct ClientInfo {
-    uint32_t client_id;
-    uint32_t socket;
-    std::string address;
-    std::string port;
-    std::string current_directory;
-    std::vector<uint8_t> encryption_key;
-};
-
-class ClientHandler;
-
 /**
  * @class ConnectionManager
  * @brief Manages server connections and handles client requests
