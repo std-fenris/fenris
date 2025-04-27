@@ -24,10 +24,21 @@ using namespace common;
 using namespace common::network;
 using namespace common::crypto;
 
+ConnectionManager::ConnectionManager(const std::string &logger_name)
+    : m_non_blocking_mode(false), m_connected(false),
+      m_has_connection_info(false)
+{
+    m_logger = get_logger(logger_name);
+    m_server_info.address = "";
+    m_server_info.port = "";
+    m_server_info.socket = -1;
+}
+
 ConnectionManager::ConnectionManager(const std::string &hostname,
                                      const std::string &port,
                                      const std::string &logger_name)
-    : m_server_handler(nullptr), m_non_blocking_mode(false), m_connected(false)
+    : m_non_blocking_mode(false), m_connected(false),
+      m_has_connection_info(true)
 {
     m_logger = get_logger(logger_name);
     m_server_info.address = hostname;
@@ -45,12 +56,36 @@ void ConnectionManager::set_non_blocking_mode(bool enabled)
     m_non_blocking_mode = enabled;
 }
 
+bool ConnectionManager::has_connection_info() const
+{
+    return m_has_connection_info;
+}
+
+void ConnectionManager::set_connection_info(const std::string &hostname,
+                                            const std::string &port)
+{
+    m_server_info.address = hostname;
+    m_server_info.port = port;
+    m_has_connection_info = true;
+}
+
+const ServerInfo &ConnectionManager::get_server_info() const
+{
+    return m_server_info;
+}
+
 bool ConnectionManager::connect()
 {
     // Don't reconnect if already connected
     if (m_connected) {
         m_logger->warn("already connected to server");
         return true;
+    }
+
+    // Check if we have connection info
+    if (!m_has_connection_info) {
+        m_logger->error("cannot connect: no server address or port specified");
+        return false;
     }
 
     struct addrinfo hints, *servinfo, *p;
@@ -64,6 +99,7 @@ bool ConnectionManager::connect()
                          &servinfo);
     if (rv != 0) {
         m_logger->error("getaddrinfo: {}", gai_strerror(rv));
+        reset_connection_info();
         return false;
     }
 
@@ -91,6 +127,7 @@ bool ConnectionManager::connect()
 
     if (p == nullptr) {
         m_logger->error("client: failed to connect to server");
+        reset_connection_info();
         return false;
     }
 
@@ -109,10 +146,18 @@ bool ConnectionManager::connect()
     if (!perform_key_exchange()) {
         m_logger->error("key exchange with server failed");
         disconnect();
+        reset_connection_info();
         return false;
     }
 
     return true;
+}
+
+void ConnectionManager::reset_connection_info()
+{
+    m_server_info.address = "";
+    m_server_info.port = "";
+    m_has_connection_info = false;
 }
 
 bool ConnectionManager::perform_key_exchange()
@@ -175,12 +220,9 @@ bool ConnectionManager::perform_key_exchange()
 void ConnectionManager::disconnect()
 {
 
-    {
-        std::lock_guard<std::mutex> lock(m_socket_mutex);
-        if (m_server_info.socket != -1) {
-            close(m_server_info.socket);
-            m_server_info.socket = -1;
-        }
+    if (m_server_info.socket != -1) {
+        close(m_server_info.socket);
+        m_server_info.socket = -1;
     }
 
     if (m_connected.exchange(false)) {
@@ -191,12 +233,6 @@ void ConnectionManager::disconnect()
 bool ConnectionManager::is_connected() const
 {
     return m_connected;
-}
-
-void ConnectionManager::set_server_handler(
-    std::unique_ptr<ServerHandler> handler)
-{
-    m_server_handler = std::move(handler);
 }
 
 const std::vector<uint8_t> &ConnectionManager::get_encryption_key() const

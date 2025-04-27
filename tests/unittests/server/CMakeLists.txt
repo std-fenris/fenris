@@ -21,4 +21,4 @@ function(add_fenris_server_unittest test_name)
 endfunction()
 
 add_fenris_server_unittest(server_connection_manager_test)
-
+add_fenris_server_unittest(cache_manager_test)

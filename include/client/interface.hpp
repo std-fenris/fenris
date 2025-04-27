@@ -10,13 +10,70 @@ namespace fenris {
 namespace client {
 
 /**
+ * @class ITUI
+ * @brief Interface for Terminal User Interface operations
+ *
+ * Abstract base class that defines the interface for user interaction
+ * via terminal. This allows for easier testing through mock implementations.
+ */
+class ITUI {
+  public:
+    /**
+     * @brief Virtual destructor for proper cleanup in derived classes
+     */
+    virtual ~ITUI() = default;
+
+    /**
+     * @brief Get server IP address from user
+     * @return IP address as string
+     */
+    virtual std::string get_server_IP() = 0;
+
+    /**
+     * @brief Get port number from user
+     * @return Port number as string
+     */
+    virtual std::string get_port_number() = 0;
+
+    /**
+     * @brief Get command from user input
+     * @return Vector of command parts
+     */
+    virtual std::vector<std::string> get_command() = 0;
+
+    /**
+     * @brief Display result of command execution
+     * @param success Whether command was successful
+     * @param result Result message or data
+     */
+    virtual void display_result(bool success, const std::string &result) = 0;
+
+    /**
+     * @brief Update current directory
+     * @param new_dir New current directory
+     */
+    virtual void update_current_directory(const std::string &new_dir) = 0;
+
+    /**
+     * @brief Get current directory
+     * @return Current directory path
+     */
+    virtual std::string get_current_directory() const = 0;
+
+    /**
+     * @brief Display help information about available commands
+     */
+    virtual void display_help() = 0;
+};
+
+/**
  * @class TUI
  * @brief Terminal User Interface for client operations
  *
- * Provides methods for interacting with the user via terminal,
+ * Concrete implementation of ITUI that interacts with the user via terminal,
  * including getting commands, validating input, and displaying results.
  */
-class TUI {
+class TUI : public ITUI {
   public:
     /**
      * @brief Constructor initializes valid commands and current directory
@@ -27,37 +84,43 @@ class TUI {
      * @brief Get server IP address from user
      * @return IP address as string
      */
-    std::string get_server_IP();
+    std::string get_server_IP() override;
+
+    /**
+     * @brief Get port number from user
+     * @return Port number as string
+     */
+    std::string get_port_number() override;
 
     /**
      * @brief Get command from user input
      * @return Vector of command parts
      */
-    std::vector<std::string> get_command();
+    std::vector<std::string> get_command() override;
 
     /**
      * @brief Display result of command execution
      * @param success Whether command was successful
      * @param result Result message or data
      */
-    void display_result(bool success, const std::string &result);
+    void display_result(bool success, const std::string &result) override;
 
     /**
      * @brief Update current directory
      * @param new_dir New current directory
      */
-    void update_current_directory(const std::string &new_dir);
+    void update_current_directory(const std::string &new_dir) override;
 
     /**
      * @brief Get current directory
      * @return Current directory path
      */
-    std::string get_current_directory() const;
+    std::string get_current_directory() const override;
 
     /**
      * @brief Display help information about available commands
      */
-    void display_help();
+    void display_help() override;
 
   private:
     /**

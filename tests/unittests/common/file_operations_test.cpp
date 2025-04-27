@@ -48,9 +48,8 @@ class FileOperationsTest : public ::testing::Test {
     void create_test_file(const std::string &filename,
                           const std::string &content)
     {
-        std::vector<uint8_t> data(content.begin(), content.end());
         std::string filepath = (test_dir / filename).string();
-        write_file(filepath, data);
+        write_file(filepath, content);
     }
 
     fs::path test_dir;     // Test directory path
@@ -101,9 +100,8 @@ TEST_F(FileOperationsTest, WriteFile)
     std::string filename = "test_write.txt";
     std::string filepath = (test_dir / filename).string();
     std::string test_content = "This is test content for writing to a file.";
-    std::vector<uint8_t> data(test_content.begin(), test_content.end());
 
-    FileOperationResult write_result = write_file(filepath, data);
+    FileOperationResult write_result = write_file(filepath, test_content);
     EXPECT_EQ(write_result, FileOperationResult::SUCCESS);
 
     auto [read_content, read_error] = read_file(filepath);
@@ -114,9 +112,8 @@ TEST_F(FileOperationsTest, WriteFile)
     // Test overwriting existing file
     std::string new_content =
         "This is new content that overwrites the old content.";
-    std::vector<uint8_t> new_data(new_content.begin(), new_content.end());
 
-    write_result = write_file(filepath, new_data);
+    write_result = write_file(filepath, new_content);
     EXPECT_EQ(write_result, FileOperationResult::SUCCESS);
 
     // Read back and verify new content
@@ -134,18 +131,13 @@ TEST_F(FileOperationsTest, AppendFile)
     std::string filepath = (test_dir / filename).string();
 
     std::string initial_content = "Initial content. ";
-    std::vector<uint8_t> initial_data(initial_content.begin(),
-                                      initial_content.end());
-
     std::string append_content = "Appended content.";
-    std::vector<uint8_t> append_data(append_content.begin(),
-                                     append_content.end());
 
     // Write initial content
-    write_file(filepath, initial_data);
+    write_file(filepath, initial_content);
 
     // Append content
-    FileOperationResult append_result = append_file(filepath, append_data);
+    FileOperationResult append_result = append_file(filepath, append_content);
     EXPECT_EQ(append_result, FileOperationResult::SUCCESS);
 
     auto [content, error] = read_file(filepath);
@@ -156,7 +148,7 @@ TEST_F(FileOperationsTest, AppendFile)
 
     // Test appending to non-existent file (should fail with FILE_NOT_FOUND)
     std::string new_file = (test_dir / "nonexistent_append.txt").string();
-    append_result = append_file(new_file, append_data);
+    append_result = append_file(new_file, append_content);
     EXPECT_EQ(append_result, FileOperationResult::FILE_NOT_FOUND);
 }
 
@@ -486,8 +478,7 @@ TEST_F(FileOperationsTest, PermissionErrors)
 
     // Test write permissions by first ensuring we can write to the file
     std::string test_content = "Testing permissions";
-    std::vector<uint8_t> test_data(test_content.begin(), test_content.end());
-    FileOperationResult initial_write = write_file(filepath, test_data);
+    FileOperationResult initial_write = write_file(filepath, test_content);
     EXPECT_EQ(initial_write, FileOperationResult::SUCCESS);
 
     // Set restrictive permissions (read-only)
@@ -497,12 +488,11 @@ TEST_F(FileOperationsTest, PermissionErrors)
 
     // Try to write to read-only file
     std::string new_content = "Try to write to read-only file";
-    std::vector<uint8_t> data(new_content.begin(), new_content.end());
-    FileOperationResult write_result = write_file(filepath, data);
+    FileOperationResult write_result = write_file(filepath, new_content);
     EXPECT_EQ(write_result, FileOperationResult::PERMISSION_DENIED);
 
     // Try to append to read-only file
-    FileOperationResult append_result = append_file(filepath, data);
+    FileOperationResult append_result = append_file(filepath, new_content);
     EXPECT_EQ(append_result, FileOperationResult::PERMISSION_DENIED);
 
     // Set directory to read-only
