@@ -1,6 +1,7 @@
 #ifndef FENRIS_COMMON_LOGGING_HPP
 #define FENRIS_COMMON_LOGGING_HPP
 
+#include <argparse/argparse.hpp>
 #include <memory>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -48,6 +49,14 @@ struct LoggingConfig {
  */
 bool initialize_logging(const LoggingConfig &config,
                         const std::string &logger_name = "fenris");
+
+/**
+ * Configure and initialize logging based on command line arguments
+ *
+ * @param program Argument parser with command line arguments
+ * @return Whether configuration succeeded
+ */
+bool configure_logging(const argparse::ArgumentParser &program);
 
 /**
  * Get the logger instance

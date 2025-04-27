@@ -74,6 +74,41 @@ bool initialize_logging(const LoggingConfig &config,
     }
 }
 
+/**
+ * Configure and initialize logging system based on command line arguments
+ */
+bool configure_logging(const argparse::ArgumentParser &program)
+{
+    LoggingConfig logging_config;
+    std::string log_level = program.get("--log-level");
+
+    // Convert string log level to enum
+    if (log_level == "trace") {
+        logging_config.level = LogLevel::TRACE;
+    } else if (log_level == "debug") {
+        logging_config.level = LogLevel::DEBUG;
+    } else if (log_level == "info") {
+        logging_config.level = LogLevel::INFO;
+    } else if (log_level == "warn") {
+        logging_config.level = LogLevel::WARN;
+    } else if (log_level == "error") {
+        logging_config.level = LogLevel::ERROR;
+    } else if (log_level == "critical") {
+        logging_config.level = LogLevel::CRITICAL;
+    } else if (log_level == "off") {
+        logging_config.level = LogLevel::OFF;
+    } else {
+        std::cerr << "Invalid log level: " << log_level << std::endl;
+        return false;
+    }
+
+    logging_config.console_logging = !program.get<bool>("--no-console-log");
+    logging_config.file_logging = program.get<bool>("--file-log");
+    logging_config.log_file_path = program.get("--log-file");
+
+    return initialize_logging(logging_config, "fenris_client");
+}
+
 Logger get_logger(const std::string &logger_name)
 {
     auto it = loggers.find(logger_name);
