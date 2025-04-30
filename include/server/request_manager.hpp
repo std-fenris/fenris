@@ -3,17 +3,18 @@
 
 #include "common/file_operations.hpp"
 #include "fenris.pb.h"
-#include "server/fenris_server_struct.hpp"
+#include "server/client_info.hpp"
+#include "server/connection_manager.hpp"
 
 namespace fenris {
 namespace server {
 
-class ClientHandler {
+class ClientHandler : public IClientHandler {
   public:
     explicit ClientHandler();
 
-    void step_directory_with_mutex(std::string &current_directory,
-                                   std::string &new_directory,
+    bool step_directory_with_mutex(std::string &current_directory,
+                                   const std::string &new_directory,
                                    uint32_t &depth,
                                    std::shared_ptr<Node> &current_node);
 
@@ -33,17 +34,9 @@ class ClientHandler {
     fenris::Response handle_request(const fenris::Request &request,
                                     ClientInfo &client_info);
 
-    std::vector<uint32_t> get_handled_client_ids();
+    void initialize_file_system_tree();
 
-    std::vector<fenris::Request> get_received_requests();
-
-    int get_request_count();
-
-  private:
-    int m_request_count;
-    std::mutex m_mutex;
-    std::vector<uint32_t> m_handled_client_sockets;
-    std::vector<fenris::Request> m_received_requests;
+    FileSystemTree FST;
 };
 
 } // namespace server

@@ -1,7 +1,7 @@
-#include "server/fenris_server_struct.hpp"
-#include <algorithm> // for std::find_if
-#include <sstream>   // for std::istringstream
-#include <stdexcept> // for std::runtime_error
+#include "server/client_info.hpp"
+#include <algorithm>
+#include <sstream>
+#include <stdexcept>
 
 namespace fenris {
 namespace server {
@@ -15,7 +15,7 @@ FileSystemTree::FileSystemTree()
     root->parent.reset(); // Use reset() to clear the weak_ptr
 }
 
-bool FileSystemTree::addNode(const std::string &path, bool is_directory)
+bool FileSystemTree::add_node(const std::string &path, bool is_directory)
 {
     auto parent = traverse(path.substr(0, path.find_last_of('/')));
     if (!parent || !parent->is_directory) {
@@ -28,11 +28,13 @@ bool FileSystemTree::addNode(const std::string &path, bool is_directory)
     new_node->access_count = 0;
     new_node->parent = parent;
 
+    std::lock_guard<std::mutex> lock(parent->node_mutex);
     parent->children.push_back(new_node);
+
     return true;
 }
 
-bool FileSystemTree::removeNode(const std::string &path)
+bool FileSystemTree::remove_node(const std::string &path)
 {
     auto node = traverse(path);
     if (!node || node->access_count > 0) {
@@ -40,21 +42,20 @@ bool FileSystemTree::removeNode(const std::string &path)
     }
 
     auto parent = node->parent.lock();
-    if (!parent) {
-        return false;
+    if (parent) {
+        std::lock_guard<std::mutex> lock(parent->node_mutex);
+        auto it = std::remove_if(parent->children.begin(),
+                                 parent->children.end(),
+                                 [&node](const std::shared_ptr<Node> &child) {
+                                     return child == node;
+                                 });
+        parent->children.erase(it, parent->children.end());
     }
 
-    parent->children.erase(
-        std::remove_if(parent->children.begin(),
-                       parent->children.end(),
-                       [&node](const std::shared_ptr<Node> &child) {
-                           return child == node;
-                       }),
-        parent->children.end());
     return true;
 }
 
-std::shared_ptr<Node> FileSystemTree::findNode(const std::string &path)
+std::shared_ptr<Node> FileSystemTree::find_node(const std::string &path)
 {
     return traverse(path);
 }
@@ -74,6 +75,7 @@ std::shared_ptr<Node> FileSystemTree::traverse(const std::string &path)
             continue;
         }
 
+        std::lock_guard<std::mutex> lock(current->node_mutex);
         auto it = std::find_if(current->children.begin(),
                                current->children.end(),
                                [&segment](const std::shared_ptr<Node> &child) {
