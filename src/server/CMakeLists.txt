@@ -7,9 +7,9 @@ verbose_message("Setting up server executable...")
 set(SERVER_SOURCES
     main.cpp
     cache_manager.cpp
+    client_info.cpp
     connection_manager.cpp
     request_manager.cpp
-    response_manager.cpp
     server.cpp
 )
 
@@ -26,6 +26,16 @@ target_link_libraries(fenris_server
     fenris_common
 )
 
+# Client executable
+add_executable(server main.cpp)
+
+# Link libraries to the client executable
+target_link_libraries(server
+    PRIVATE
+    fenris_client
+    fenris_common
+    fenris_proto
+)
 # Install the server executable
 install(TARGETS fenris_server
     RUNTIME DESTINATION bin

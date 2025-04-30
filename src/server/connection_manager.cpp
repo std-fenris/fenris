@@ -4,7 +4,7 @@
 #include "common/request.hpp"
 #include "common/response.hpp"
 #include "fenris.pb.h"
-#include "server/fenris_server_struct.hpp"
+#include "server/client_info.hpp"
 #include "server/request_manager.hpp"
 
 #include <algorithm>
@@ -196,7 +196,7 @@ void ConnectionManager::stop()
 }
 
 void ConnectionManager::set_client_handler(
-    std::unique_ptr<ClientHandler> handler)
+    std::unique_ptr<IClientHandler> handler)
 {
     m_client_handler = std::move(handler);
 }
@@ -321,8 +321,6 @@ void ConnectionManager::handle_client(uint32_t client_socket,
         fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
     }
 
-    bool keep_connection = true;
-
     if (!perform_key_exchange(client_info)) {
         m_logger->error("key exchange failed with client: {}",
                         client_info.client_id);
@@ -332,7 +330,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
     }
 
     // Process client requests
-    while (m_running && keep_connection) {
+    while (m_running && client_info.keep_connection) {
 
         auto request_opt = receive_request(client_info);
         if (!request_opt.has_value()) {
@@ -343,9 +341,8 @@ void ConnectionManager::handle_client(uint32_t client_socket,
 
         auto response =
             m_client_handler->handle_request(request_opt.value(), client_info);
-        keep_connection = response.second;
 
-        if (!send_response(client_info, response.first)) {
+        if (!send_response(client_info, response)) {
             m_logger->error("failed to send response to client: {}",
                             client_info.client_id);
             break;
