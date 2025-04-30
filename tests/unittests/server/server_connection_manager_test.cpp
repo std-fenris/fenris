@@ -27,7 +27,7 @@ using namespace fenris::common::network;
 using namespace google::protobuf::util;
 
 // Mock implementation of ClientHandler for testing
-class MockClientHandler : public ClientHandler {
+class MockClientHandler : public IClientHandler {
   public:
     explicit MockClientHandler(bool keep_connection = true,
                                int max_requests = 10)
@@ -36,12 +36,11 @@ class MockClientHandler : public ClientHandler {
     {
     }
 
-    std::pair<fenris::Response, bool>
-    handle_request(uint32_t client_socket,
-                   const fenris::Request &request) override
+    fenris::Response handle_request(const fenris::Request &request,
+                                    ClientInfo &client_info) override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_handled_client_sockets.push_back(client_socket);
+        m_handled_client_sockets.push_back(client_info.socket);
         m_received_requests.push_back(request);
         m_request_count++;
 
@@ -91,7 +90,8 @@ class MockClientHandler : public ClientHandler {
         }
         bool should_keep_connection =
             m_keep_connection && (m_request_count < m_max_requests);
-        return {response, should_keep_connection};
+        client_info.keep_connection = should_keep_connection;
+        return response;
     }
 
     std::vector<uint32_t> get_handled_client_ids()
@@ -282,7 +282,6 @@ class ServerConnectionManagerTest : public ::testing::Test {
   protected:
     void SetUp() override
     {
-
         m_port = 12345 + (rand() % 1000);
         m_port_str = std::to_string(m_port);
 
@@ -314,8 +313,6 @@ class ServerConnectionManagerTest : public ::testing::Test {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
 
-        
-
         for (int sock : m_client_sockets) {
             if (sock >= 0) {
                 close(sock);
@@ -324,28 +321,29 @@ class ServerConnectionManagerTest : public ::testing::Test {
         m_client_sockets.clear();
     }
 
-    ClientInfo connect_test_client()
+    std::pair<ClientInfo, bool> connect_test_client()
     {
         int client_sock = create_and_connect_client_socket("127.0.0.1", m_port);
         std::vector<uint8_t> shared_key;
 
-        if (client_sock >= 0) {
-            m_client_sockets.push_back(client_sock);
-
-            if (!perform_client_key_exchange(client_sock, shared_key)) {
-                std::cerr << "Key exchange failed during test client connection"
-                          << std::endl;
-                close(client_sock);
-                m_client_sockets.pop_back();
-                return ClientInfo{};
-            }
-            std::cout << "Key exchange successful for client socket: "
-                      << client_sock << std::endl;
+        if (client_sock < 0) {
+            return {ClientInfo(0, 0), false};
         }
 
-        ClientInfo client_info;
-        client_info.client_id = m_client_sockets.size();
-        client_info.socket = client_sock;
+        m_client_sockets.push_back(client_sock);
+
+        if (!perform_client_key_exchange(client_sock, shared_key)) {
+            std::cerr << "Key exchange failed during test client connection"
+                      << std::endl;
+            close(client_sock);
+            m_client_sockets.pop_back();
+            return {ClientInfo(0, 0), false};
+        }
+
+        std::cout << "Key exchange successful for client socket: "
+                  << client_sock << std::endl;
+
+        ClientInfo client_info(m_client_sockets.size(), client_sock);
         client_info.encryption_key = std::vector<uint8_t>(shared_key);
         client_info.address = "127.0.0.1";
         client_info.port = m_port_str;
@@ -353,7 +351,7 @@ class ServerConnectionManagerTest : public ::testing::Test {
         std::cout << "Client connected with ID: " << client_info.client_id
                   << std::endl;
 
-        return client_info;
+        return {client_info, true};
     }
 
     std::unique_ptr<ConnectionManager> m_connection_manager;
@@ -379,8 +377,8 @@ TEST_F(ServerConnectionManagerTest, AcceptClientConnection)
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    ClientInfo client = connect_test_client();
-    ASSERT_GE(client.socket, 0);
+    auto [client, success] = connect_test_client();
+    ASSERT_TRUE(success);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 1);
@@ -455,13 +453,12 @@ TEST_F(ServerConnectionManagerTest, MultipleClientConnections)
         ASSERT_EQ(response_opt->data(), "TERMINATE");
     };
 
-    ClientInfo client1 = connect_test_client();
-    ClientInfo client2 = connect_test_client();
-    ClientInfo client3 = connect_test_client();
-
-    ASSERT_GE(client1.socket, 0);
-    ASSERT_GE(client2.socket, 0);
-    ASSERT_GE(client3.socket, 0);
+    auto [client1, success1] = connect_test_client();
+    ASSERT_TRUE(success1);
+    auto [client2, success2] = connect_test_client();
+    ASSERT_TRUE(success2);
+    auto [client3, success3] = connect_test_client();
+    ASSERT_TRUE(success3);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 3);
@@ -491,8 +488,8 @@ TEST_F(ServerConnectionManagerTest, ClientDisconnection)
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    ClientInfo client = connect_test_client();
-    ASSERT_GE(client.socket, 0);
+    auto [client, success] = connect_test_client();
+    ASSERT_TRUE(success);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     ASSERT_EQ(m_connection_manager->get_active_client_count(), 1);
@@ -527,8 +524,8 @@ TEST_F(ServerConnectionManagerTest, HandleDifferentRequestTypes)
     m_connection_manager->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    ClientInfo client = connect_test_client();
-    ASSERT_GE(client.socket, 0);
+    auto [client, success] = connect_test_client();
+    ASSERT_TRUE(success);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 

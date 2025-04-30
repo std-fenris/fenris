@@ -4,6 +4,7 @@
 #include "common/crypto_manager.hpp"
 #include "common/logging.hpp"
 #include "fenris.pb.h"
+#include "server/client_info.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -18,6 +19,26 @@
 
 namespace fenris {
 namespace server {
+
+/**
+ * @class IClientHandler
+ * @brief Interface for handling client requests
+ *
+ * Implement this interface to process client requests in your file system
+ */
+class IClientHandler {
+  public:
+    virtual ~IClientHandler() = default;
+
+    /**
+     * @brief Process a client request.
+     * @param client_socket Socket descriptor for the client connection.
+     * @param request The deserialized client request.
+     * @return A Response object to be sent back to the client.
+     */
+    virtual fenris::Response handle_request(const fenris::Request &request,
+                                            ClientInfo &client_info) = 0;
+};
 
 /**
  * @class ConnectionManager
@@ -64,7 +85,7 @@ class ConnectionManager {
      * @brief Set handler for client connections
      * @param handler Function that processes client requests
      */
-    void set_client_handler(std::unique_ptr<ClientHandler> handler);
+    void set_client_handler(std::unique_ptr<IClientHandler> handler);
 
     /**
      * @brief Get number of active clients
@@ -133,7 +154,7 @@ class ConnectionManager {
 
     std::string m_hostname;
     std::string m_port;
-    std::unique_ptr<ClientHandler> m_client_handler;
+    std::unique_ptr<IClientHandler> m_client_handler;
     int32_t m_server_socket{-1};
     std::atomic<bool> m_running{false};
     std::thread m_listen_thread;
@@ -147,29 +168,6 @@ class ConnectionManager {
     std::vector<std::thread> m_client_threads;
     mutable std::mutex m_client_mutex;
     std::atomic<uint32_t> m_next_client_id{1};
-};
-
-/**
- * @class ClientHandler
- * @brief Interface for handling client requests
- *
- * Implement this interface to process client requests in your file system
- */
-class ClientHandler {
-  public:
-    virtual ~ClientHandler() = default;
-
-    /**
-     * @brief Process a client request.
-     * @param client_socket Socket descriptor for the client connection.
-     * @param request The deserialized client request.
-     * @return A Response object to be sent back to the client.
-     *         The 'success' field should indicate if the operation succeeded.
-     *         Return a default or error response if processing fails
-     * internally.
-     */
-    virtual std::pair<fenris::Response, bool>
-    handle_request(uint32_t client_socket, const fenris::Request &request) = 0;
 };
 
 } // namespace server
