@@ -4,8 +4,8 @@
 #include "common/request.hpp"
 #include "common/response.hpp"
 #include "fenris.pb.h"
+#include "server/client_info.hpp"
 #include "server/request_manager.hpp"
-#include "server/server.hpp"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -196,7 +196,7 @@ void ConnectionManager::stop()
 }
 
 void ConnectionManager::set_client_handler(
-    std::unique_ptr<ClientHandler> handler)
+    std::unique_ptr<IClientHandler> handler)
 {
     m_client_handler = std::move(handler);
 }
@@ -313,17 +313,13 @@ void ConnectionManager::handle_client(uint32_t client_socket,
                                       uint32_t client_id)
 {
 
-    ClientInfo client_info;
-    client_info.client_id = client_id;
-    client_info.socket = client_socket;
+    ClientInfo client_info(client_id, client_socket);
 
     // Set client socket to non-blocking if server is in non-blocking mode
     if (m_non_blocking_mode) {
         int flags = fcntl(client_socket, F_GETFL);
         fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
     }
-
-    bool keep_connection = true;
 
     if (!perform_key_exchange(client_info)) {
         m_logger->error("key exchange failed with client: {}",
@@ -334,7 +330,7 @@ void ConnectionManager::handle_client(uint32_t client_socket,
     }
 
     // Process client requests
-    while (m_running && keep_connection) {
+    while (m_running && client_info.keep_connection) {
 
         auto request_opt = receive_request(client_info);
         if (!request_opt.has_value()) {
@@ -343,11 +339,10 @@ void ConnectionManager::handle_client(uint32_t client_socket,
             break;
         }
 
-        auto response = m_client_handler->handle_request(client_socket,
-                                                         request_opt.value());
-        keep_connection = response.second;
+        auto response =
+            m_client_handler->handle_request(request_opt.value(), client_info);
 
-        if (!send_response(client_info, response.first)) {
+        if (!send_response(client_info, response)) {
             m_logger->error("failed to send response to client: {}",
                             client_info.client_id);
             break;

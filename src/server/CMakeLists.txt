@@ -7,6 +7,7 @@ verbose_message("Setting up server executable...")
 set(SERVER_SOURCES
     main.cpp
     cache_manager.cpp
+    client_info.cpp
     connection_manager.cpp
     request_manager.cpp
     response_manager.cpp
