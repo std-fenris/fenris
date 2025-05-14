@@ -169,7 +169,9 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
     }
 
     std::string _file = request.filename().substr(ind);
-    std::string filename = DEFAULT_SERVER_DIR + new_directory + _file;
+    std::string filename = new_directory + _file;
+    std::string absolute_filepath = DEFAULT_SERVER_DIR + filename;
+    m_logger->debug("Absolute path: '{}'", absolute_filepath);
 
     if (filename[filename.size() - 1] == '/') {
         filename = filename.substr(0, filename.size() - 1);
@@ -183,7 +185,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
         m_logger->debug("Processing CREATE_FILE request for '{}'", filename);
         std::lock_guard<std::mutex> lock(new_node->node_mutex);
 
-        auto result = common::create_file(filename);
+        auto result = common::create_file(absolute_filepath);
 
         if (result == common::FileOperationResult::SUCCESS) {
             m_logger->debug("File created successfully");
@@ -222,7 +224,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
             m_logger->debug("Incremented access count for file");
         }
 
-        auto [content, result] = common::read_file(filename);
+        auto [content, result] = common::read_file(absolute_filepath);
 
         {
             std::lock_guard<std::mutex> lock((it)->node_mutex);
@@ -252,7 +254,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
 
         if (it == nullptr) {
             std::lock_guard<std::mutex> lock(new_node->node_mutex);
-            auto result = common::create_file(filename);
+            auto result = common::create_file(absolute_filepath);
 
             if (result == common::FileOperationResult::SUCCESS) {
                 m_logger->debug("File created successfully");
@@ -283,7 +285,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
         }
 
         auto result =
-            common::write_file(filename,
+            common::write_file(absolute_filepath,
                                {request.data().begin(), request.data().end()});
         if (result == common::FileOperationResult::SUCCESS) {
             m_logger->debug("File written successfully");
@@ -319,7 +321,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
             while ((it)->access_count > 0) {
                 // Wait for access count to be zero
             }
-            result = fenris::common::delete_file(filename);
+            result = fenris::common::delete_file(absolute_filepath);
         }
         // `result` stores the outcome of the file deletion operation.
         if (result == fenris::common::FileOperationResult::SUCCESS) {
@@ -350,7 +352,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
             m_logger->debug("Incremented access count for file info");
         }
 
-        auto [content, result] = common::get_file_info(filename);
+        auto [content, result] = common::get_file_info(absolute_filepath);
 
         (it)->access_count--;
         m_logger->debug("Decremented access count for file info");
@@ -378,7 +380,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
         m_logger->debug("Processing CREATE_DIR request for '{}'", filename);
         std::lock_guard<std::mutex> lock(new_node->node_mutex);
 
-        auto result = common::create_directory(filename);
+        auto result = common::create_directory(absolute_filepath);
         if (result == common::FileOperationResult::SUCCESS) {
             m_logger->debug("Directory created successfully");
             FST.add_node(filename, true);
@@ -397,7 +399,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
     case fenris::RequestType::LIST_DIR: {
         m_logger->debug("Processing LIST_DIR request for '{}'", filename);
         std::lock_guard<std::mutex> lock(new_node->node_mutex);
-        auto [entries, result] = common::list_directory(filename);
+        auto [entries, result] = common::list_directory(absolute_filepath);
         if (result == common::FileOperationResult::SUCCESS) {
             m_logger->debug("Directory listed successfully, found {} entries",
                             entries.size());
@@ -464,7 +466,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
                 break;
             }
         }
-        auto result = common::delete_directory(filename, true);
+        auto result = common::delete_directory(absolute_filepath, true);
         if (result == common::FileOperationResult::SUCCESS) {
             m_logger->debug("Directory deleted successfully");
             response.set_type(fenris::ResponseType::SUCCESS);
