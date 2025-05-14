@@ -46,7 +46,6 @@ bool ClientHandler::step_directory_with_mutex(
             m_logger->debug("Changed to directory '{}'", current_directory);
         }
     }
-    current_directory = new_directory;
     return true;
 }
 
@@ -169,7 +168,18 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
     }
 
     std::string _file = request.filename().substr(ind);
+    m_logger->debug("File name extracted: '{}'", _file);
+    m_logger->debug("New directory: '{}'", new_directory);
+    if (new_directory.size() > 1) {
+        if (new_directory[new_directory.size() - 1] != '/') {
+            new_directory += '/';
+        }
+        if (new_directory[0] != '/') {
+            new_directory = '/' + new_directory;
+        }
+    }
     std::string filename = new_directory + _file;
+    m_logger->debug("Filename: '{}'", filename);
     std::string absolute_filepath = DEFAULT_SERVER_DIR + filename;
     m_logger->debug("Absolute path: '{}'", absolute_filepath);
 
@@ -447,7 +457,8 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
         std::swap(new_depth, client_info.depth);
         response.set_type(fenris::ResponseType::SUCCESS);
         response.set_success(true);
-        response.set_data("Changed directory successfully");
+        m_logger->debug("Changed directory to '{}'", client_info.current_directory);
+        response.set_data(client_info.current_directory);
         break;
     }
     case fenris::RequestType::DELETE_DIR: {
