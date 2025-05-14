@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (!fenris::common::configure_logging(program)) {
+    if (!fenris::common::configure_logging(program, "fenris_client")) {
         std::cerr << "Failed to initialize logging system" << std::endl;
         return 1;
     }

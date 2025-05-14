@@ -12,7 +12,7 @@ using namespace common;
 
 Client::Client(const std::string &logger_name)
     : m_connection_manager(nullptr), m_tui(std::make_unique<TUI>()),
-      m_request_manager(), m_response_manager(),
+      m_request_manager(), m_response_manager(logger_name),
       m_logger(get_logger(logger_name)), m_exit_requested(false)
 {
     m_logger->info("fenris client initialized");
@@ -129,6 +129,7 @@ bool Client::process_command(const std::vector<std::string> &command_parts)
 
     // Extract success status from the first element (following ResponseManager
     // convention)
+    std::cout << "response success" << std::endl;
     bool success =
         (formatted_response.size() > 0 && formatted_response[0] == "Success");
 

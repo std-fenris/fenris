@@ -56,7 +56,8 @@ bool initialize_logging(const LoggingConfig &config,
  * @param program Argument parser with command line arguments
  * @return Whether configuration succeeded
  */
-bool configure_logging(const argparse::ArgumentParser &program);
+bool configure_logging(const argparse::ArgumentParser &program,
+                       const std::string &log_name = "fenris");
 
 /**
  * Get the logger instance
