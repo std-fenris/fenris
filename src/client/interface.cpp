@@ -1,4 +1,5 @@
 #include "client/interface.hpp"
+#include "client/colors.hpp"
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
@@ -48,7 +49,8 @@ TUI::TUI() : curr_dir("/")
 std::string TUI::get_server_IP()
 {
     std::string ip;
-    std::cout << "Enter server IP address: ";
+    std::cout << colors::BOLD << colors::CYAN
+              << "Enter server IP address: " << colors::RESET;
     std::getline(std::cin, ip);
 
     // Use regex to validate IP format (IPv4 address validation)
@@ -70,14 +72,14 @@ std::string TUI::get_server_IP()
 
     if (ip.empty()) {
         ip = "127.0.0.1"; // Default to localhost
-        std::cout << "Using default IP: " << ip << std::endl;
+        std::cout << colors::info("Using default IP: " + ip) << std::endl;
     } else if (!std::regex_match(ip, ipv4_pattern) &&
                !std::regex_match(ip, hostname_pattern)) {
-        std::cout
-            << "Invalid IP address or hostname format. Using default instead."
-            << std::endl;
+        std::cout << colors::warning("Invalid IP address or hostname format. "
+                                     "Using default instead.")
+                  << std::endl;
         ip = "127.0.0.1";
-        std::cout << "Using default IP: " << ip << std::endl;
+        std::cout << colors::info("Using default IP: " + ip) << std::endl;
     }
 
     return ip;
@@ -86,13 +88,15 @@ std::string TUI::get_server_IP()
 std::string TUI::get_port_number()
 {
     std::string port;
-    std::cout << "Enter server port number: ";
+    std::cout << colors::BOLD << colors::CYAN
+              << "Enter server port number: " << colors::RESET;
     std::getline(std::cin, port);
 
     // Validate port number (should be a number between 1 and 65535)
     if (port.empty() || !std::all_of(port.begin(), port.end(), ::isdigit) ||
         std::stoi(port) < 1 || std::stoi(port) > 65535) {
-        std::cout << "Invalid port number. Using default port 7777."
+        std::cout << colors::warning(
+                         "Invalid port number. Using default port 7777.")
                   << std::endl;
         return "7777"; // Default port
     }
@@ -106,7 +110,8 @@ std::vector<std::string> TUI::get_command()
     std::vector<std::string> command_parts;
 
     // Display prompt with current directory
-    std::cout << "fenris:" << curr_dir << "> ";
+    std::cout << colors::CYAN << "fenris:" << colors::GREEN << curr_dir
+              << colors::CYAN << "> " << colors::RESET;
     std::getline(std::cin, input);
 
     if (input.empty()) {
@@ -144,7 +149,7 @@ bool TUI::validate_command(const std::vector<std::string> &command_parts)
 
     // Verify the command is in our set of valid commands
     if (valid_commands.find(cmd) == valid_commands.end()) {
-        std::cout << "Invalid command: " << cmd << std::endl;
+        std::cout << colors::error("Invalid command: " + cmd) << std::endl;
         return false;
     }
 
@@ -171,12 +176,16 @@ bool TUI::validate_command(const std::vector<std::string> &command_parts)
 
         if (arg_count < min_args || arg_count > max_args) {
             if (min_args == max_args) {
-                std::cout << "Error: " << cmd << " requires exactly "
-                          << min_args << " argument"
-                          << (min_args != 1 ? "s" : "") << std::endl;
+                std::cout << colors::error(
+                                 "Error: " + cmd + " requires exactly " +
+                                 std::to_string(min_args) + " argument" +
+                                 (min_args != 1 ? "s" : ""))
+                          << std::endl;
             } else {
-                std::cout << "Error: " << cmd << " requires between "
-                          << min_args << " and " << max_args << " arguments"
+                std::cout << colors::error(
+                                 "Error: " + cmd + " requires between " +
+                                 std::to_string(min_args) + " and " +
+                                 std::to_string(max_args) + " arguments")
                           << std::endl;
             }
             return false;
@@ -193,10 +202,27 @@ bool TUI::is_prefix(const std::string &str, const std::string &prefix)
 
 void TUI::display_result(bool success, const std::string &result)
 {
-    if (result.empty()) {
-        std::cout << "Command completed successfully." << std::endl;
+    if (success) {
+        if (result.empty()) {
+            std::cout << colors::success("Command completed successfully.")
+                      << std::endl;
+        } else {
+            // Check if the result is already colorized (contains color codes)
+            if (result.find("\033[") != std::string::npos) {
+                std::cout << result << std::endl;
+            } else {
+                std::cout << colors::info(result) << std::endl;
+            }
+        }
     } else {
-        std::cout << result << std::endl;
+        // Check if the result is already colorized or starts with "Error:"
+        if (result.find("\033[") != std::string::npos) {
+            std::cout << result << std::endl;
+        } else if (result.find("Error:") == 0) {
+            std::cout << colors::error(result) << std::endl;
+        } else {
+            std::cout << colors::error(result) << std::endl;
+        }
     }
 }
 
@@ -222,8 +248,10 @@ std::string TUI::get_current_directory() const
 
 void TUI::display_help()
 {
-    std::cout << "\nAvailable Commands:\n";
-    std::cout << "==================\n";
+    std::cout << "\n"
+              << colors::BOLD << colors::MAGENTA
+              << "Available Commands:" << colors::RESET << "\n";
+    std::cout << colors::CYAN << "==================" << colors::RESET << "\n";
 
     size_t max_cmd_length = 0;
     for (const auto &[cmd, _] : command_descriptions) {
@@ -238,8 +266,26 @@ void TUI::display_help()
     std::sort(cmd_names.begin(), cmd_names.end());
 
     for (const auto &cmd : cmd_names) {
-        std::cout << std::left << std::setw(max_cmd_length + 4) << cmd
-                  << command_descriptions[cmd] << std::endl;
+        // Get description and split into command name part and argument part
+        std::string desc = command_descriptions[cmd];
+        std::string arg_part;
+
+        size_t pos = desc.find('(');
+        if (pos != std::string::npos &&
+            desc.find(')', pos) != std::string::npos) {
+            arg_part = desc.substr(pos);
+            desc = desc.substr(0, pos - 1); // -1 to remove trailing space
+        }
+
+        std::cout << colors::BOLD << colors::GREEN << std::left
+                  << std::setw(max_cmd_length + 4) << cmd << colors::RESET
+                  << desc;
+
+        if (!arg_part.empty()) {
+            std::cout << " " << colors::YELLOW << arg_part << colors::RESET;
+        }
+
+        std::cout << std::endl;
     }
     std::cout << std::endl;
 }

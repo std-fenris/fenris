@@ -1,4 +1,5 @@
 #include "client/response_manager.hpp"
+#include "client/colors.hpp"
 #include "common/logging.hpp"
 
 #include <chrono>
@@ -26,7 +27,12 @@ ResponseManager::handle_response(const fenris::Response &response)
                     static_cast<int>(response.type()));
     std::vector<std::string> result;
 
-    result.push_back(response.success() ? "Success" : "Error");
+    // Add colorized status as first line
+    if (response.success()) {
+        result.push_back(colors::success("Success"));
+    } else {
+        result.push_back(colors::error("Error"));
+    }
 
     switch (response.type()) {
     case ResponseType::PONG:
@@ -80,11 +86,11 @@ ResponseManager::handle_response(const fenris::Response &response)
 void ResponseManager::handle_pong_response(const fenris::Response &response,
                                            std::vector<std::string> &result)
 {
-    result.push_back("Server is alive");
+    result.push_back(colors::success("Server is alive"));
 
     if (!response.data().empty()) {
         m_logger->debug("PONG response includes message: {}", response.data());
-        result.push_back("Message: " + response.data());
+        result.push_back(colors::info("Message: " + response.data()));
     }
 }
 
@@ -100,23 +106,25 @@ void ResponseManager::handle_file_info_response(
 
     const auto &file_info = response.file_info();
     m_logger->debug("Processing file info for: {}", file_info.name());
-    result.push_back("File: " + file_info.name());
+    result.push_back(colors::BOLD + "File: " + colors::RESET + colors::CYAN +
+                     file_info.name() + colors::RESET);
 
     // Format file size with appropriate units
     std::string size_str = format_file_size(file_info.size());
-    result.push_back("Size: " + size_str);
+    result.push_back(colors::BOLD + "Size: " + colors::RESET + size_str);
 
     // Format timestamp to human-readable date
     std::string time_str = format_timestamp(file_info.modified_time());
-    result.push_back("Modified: " + time_str);
+    result.push_back(colors::BOLD + "Modified: " + colors::RESET + time_str);
 
     // Add file/directory type indicator
-    result.push_back("Type: " + std::string(file_info.is_directory()
-                                                ? "Directory"
-                                                : "File"));
+    result.push_back(colors::BOLD + "Type: " + colors::RESET +
+                     (file_info.is_directory()
+                          ? colors::BLUE + "Directory" + colors::RESET
+                          : colors::GREEN + "File" + colors::RESET));
 
     if (file_info.permissions()) {
-        result.push_back("Permissions: " +
+        result.push_back(colors::BOLD + "Permissions: " + colors::RESET +
                          format_permissions(file_info.permissions()));
     }
 
@@ -129,7 +137,7 @@ void ResponseManager::handle_file_content_response(
 {
     if (response.data().empty()) {
         m_logger->debug("File content is empty");
-        result.push_back("(Empty file)");
+        result.push_back(colors::YELLOW + "(Empty file)" + colors::RESET);
         return;
     }
 
@@ -151,8 +159,9 @@ void ResponseManager::handle_file_content_response(
         m_logger->debug(
             "File content appears to be binary data, size: {} bytes",
             response.data().size());
-        result.push_back("(Binary data, " +
-                         format_file_size(response.data().size()) + ")");
+        result.push_back(colors::MAGENTA + "(Binary data, " +
+                         format_file_size(response.data().size()) + ")" +
+                         colors::RESET);
         return;
     }
 
@@ -195,7 +204,7 @@ void ResponseManager::handle_directory_listing_response(
 
     if (listing.entries_size() == 0) {
         m_logger->debug("Directory is empty");
-        result.push_back("(Empty directory)");
+        result.push_back(colors::YELLOW + "(Empty directory)" + colors::RESET);
         return;
     }
 
@@ -209,19 +218,27 @@ void ResponseManager::handle_directory_listing_response(
     }
 
     std::ostringstream header;
-    header << std::left << std::setw(name_width + 2) << "Name"
+    header << colors::BOLD << std::left << std::setw(name_width + 2) << "Name"
            << std::setw(size_width + 2) << "Size" << std::setw(20) << "Modified"
-           << "Type";
+           << "Type" << colors::RESET;
     result.push_back(header.str());
 
-    result.push_back(std::string(header.str().length(), '-'));
+    result.push_back(colors::CYAN +
+                     std::string(header.str().length() - colors::BOLD.length() -
+                                     colors::RESET.length(),
+                                 '-') +
+                     colors::RESET);
 
     for (const auto &entry : listing.entries()) {
         std::ostringstream line;
-        line << std::left << std::setw(name_width + 2) << entry.name()
+        line << std::left
+             << (entry.is_directory() ? colors::BLUE : colors::GREEN)
+             << std::setw(name_width + 2) << entry.name() << colors::RESET
              << std::setw(size_width + 2) << format_file_size(entry.size())
              << std::setw(20) << format_timestamp(entry.modified_time())
-             << (entry.is_directory() ? "Directory" : "File");
+             << (entry.is_directory()
+                     ? colors::BLUE + "Directory" + colors::RESET
+                     : colors::GREEN + "File" + colors::RESET);
         result.push_back(line.str());
     }
 
@@ -279,19 +296,27 @@ std::string ResponseManager::format_file_size(uint64_t size_bytes)
     std::ostringstream size_stream;
     size_stream << std::fixed << std::setprecision(2);
 
+    std::string color;
+
+    // Use colors based on file size
     if (size_bytes < KB) {
+        color = colors::GREEN; // Small files in green
         size_stream << size_bytes << " B";
     } else if (size_bytes < MB) {
+        color = colors::GREEN;
         size_stream << (size_bytes / KB) << " KB";
     } else if (size_bytes < GB) {
+        color = colors::YELLOW; // Medium files in yellow
         size_stream << (size_bytes / MB) << " MB";
     } else if (size_bytes < TB) {
+        color = colors::MAGENTA; // Large files in magenta
         size_stream << (size_bytes / GB) << " GB";
     } else {
+        color = colors::RED; // Very large files in red
         size_stream << (size_bytes / TB) << " TB";
     }
 
-    return size_stream.str();
+    return color + size_stream.str() + colors::RESET;
 }
 
 std::string ResponseManager::format_timestamp(uint64_t timestamp)
@@ -302,17 +327,17 @@ std::string ResponseManager::format_timestamp(uint64_t timestamp)
 
         if (tm_info == nullptr) {
             m_logger->warn("Failed to convert timestamp: {}", timestamp);
-            return "Invalid timestamp";
+            return colors::RED + "Invalid timestamp" + colors::RESET;
         }
 
         std::ostringstream time_stream;
         time_stream << std::put_time(tm_info, "%Y-%m-%d %H:%M:%S");
-        return time_stream.str();
+        return colors::CYAN + time_stream.str() + colors::RESET;
     } catch (const std::exception &e) {
         m_logger->error("Error formatting timestamp {}: {}",
                         timestamp,
                         e.what());
-        return "Invalid timestamp";
+        return colors::RED + "Invalid timestamp" + colors::RESET;
     }
 }
 
@@ -320,18 +345,23 @@ std::string ResponseManager::format_permissions(uint32_t permissions)
 {
     std::ostringstream perm_stream;
 
-    // Format as rwxrwxrwx
-    perm_stream << ((permissions & 0400) ? "r" : "-")
-                << ((permissions & 0200) ? "w" : "-")
-                << ((permissions & 0100) ? "x" : "-")
-                << ((permissions & 0040) ? "r" : "-")
-                << ((permissions & 0020) ? "w" : "-")
-                << ((permissions & 0010) ? "x" : "-")
-                << ((permissions & 0004) ? "r" : "-")
-                << ((permissions & 0002) ? "w" : "-")
-                << ((permissions & 0001) ? "x" : "-");
+    // Format as rwxrwxrwx with colors
+    perm_stream
+        << ((permissions & 0400) ? colors::GREEN + "r" : colors::RED + "-")
+        << ((permissions & 0200) ? colors::GREEN + "w" : colors::RED + "-")
+        << ((permissions & 0100) ? colors::GREEN + "x" : colors::RED + "-")
+        << colors::RESET
+        << ((permissions & 0040) ? colors::YELLOW + "r" : colors::RED + "-")
+        << ((permissions & 0020) ? colors::YELLOW + "w" : colors::RED + "-")
+        << ((permissions & 0010) ? colors::YELLOW + "x" : colors::RED + "-")
+        << colors::RESET
+        << ((permissions & 0004) ? colors::CYAN + "r" : colors::RED + "-")
+        << ((permissions & 0002) ? colors::CYAN + "w" : colors::RED + "-")
+        << ((permissions & 0001) ? colors::CYAN + "x" : colors::RED + "-")
+        << colors::RESET;
 
-    perm_stream << " (" << std::oct << permissions << std::dec << ")";
+    perm_stream << " (" << colors::YELLOW << std::oct << permissions << std::dec
+                << colors::RESET << ")";
 
     return perm_stream.str();
 }

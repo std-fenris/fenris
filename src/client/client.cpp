@@ -67,7 +67,9 @@ bool Client::connect_to_server()
         m_logger->info("successfully connected to server at {}:{}",
                        server_ip,
                        server_port);
-        m_tui->display_result(true, "connected to server");
+        m_tui->display_result(true,
+                              "Connected to server at " + server_ip + ":" +
+                                  server_port);
     } else {
         m_logger->error("failed to connect to server at {}:{}",
                         server_ip,
