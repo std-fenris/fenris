@@ -17,20 +17,22 @@ FileSystemTree::FileSystemTree()
 
 bool FileSystemTree::add_node(const std::string &path, bool is_directory)
 {
-    std::lock_guard<std::mutex> lock(tree_mutex);
-    auto parent = traverse(path.substr(0, path.find_last_of('/')));
-    if (!parent || !parent->is_directory) {
-        return false;
+    {
+
+        std::lock_guard<std::mutex> lock(tree_mutex);
+        auto parent = traverse(path.substr(0, path.find_last_of('/')));
+        if (!parent || !parent->is_directory) {
+            return false;
+        }
+
+        auto new_node = std::make_shared<Node>();
+        new_node->name = path.substr(path.find_last_of('/') + 1);
+        new_node->is_directory = is_directory;
+        new_node->access_count = 0;
+        new_node->parent = parent;
+
+        parent->children.push_back(new_node);
     }
-
-    auto new_node = std::make_shared<Node>();
-    new_node->name = path.substr(path.find_last_of('/') + 1);
-    new_node->is_directory = is_directory;
-    new_node->access_count = 0;
-    new_node->parent = parent;
-
-    parent->children.push_back(new_node);
-
     return true;
 }
 
@@ -103,8 +105,6 @@ std::shared_ptr<Node> FileSystemTree::traverse(const std::string &path)
         if (segment.empty()) {
             continue;
         }
-
-        std::lock_guard<std::mutex> lock(current->node_mutex);
         auto it = std::find_if(current->children.begin(),
                                current->children.end(),
                                [&segment](const std::shared_ptr<Node> &child) {
