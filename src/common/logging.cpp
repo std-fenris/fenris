@@ -77,7 +77,8 @@ bool initialize_logging(const LoggingConfig &config,
 /**
  * Configure and initialize logging system based on command line arguments
  */
-bool configure_logging(const argparse::ArgumentParser &program)
+bool configure_logging(const argparse::ArgumentParser &program,
+                       const std::string &log_name)
 {
     LoggingConfig logging_config;
     std::string log_level = program.get("--log-level");
@@ -106,7 +107,7 @@ bool configure_logging(const argparse::ArgumentParser &program)
     logging_config.file_logging = program.get<bool>("--file-log");
     logging_config.log_file_path = program.get("--log-file");
 
-    return initialize_logging(logging_config, "fenris_client");
+    return initialize_logging(logging_config, log_name);
 }
 
 Logger get_logger(const std::string &logger_name)
