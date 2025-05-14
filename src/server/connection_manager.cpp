@@ -341,6 +341,8 @@ void ConnectionManager::handle_client(uint32_t client_socket,
 
         auto response =
             m_client_handler->handle_request(request_opt.value(), client_info);
+        m_logger->debug("handling request from client {}",
+                        client_info.client_id);
 
         if (!send_response(client_info, response)) {
             m_logger->error("failed to send response to client: {}",
@@ -367,6 +369,7 @@ void ConnectionManager::remove_client(uint32_t client_id)
 bool ConnectionManager::send_response(const ClientInfo &client_info,
                                       const fenris::Response &response)
 {
+    m_logger->debug("sending response to client {}", client_info.client_id);
     // Serialize the response
     std::vector<uint8_t> serialized_response = serialize_response(response);
 
@@ -401,6 +404,9 @@ bool ConnectionManager::send_response(const ClientInfo &client_info,
     NetworkResult send_result = send_prefixed_data(client_info.socket,
                                                    message_with_iv,
                                                    m_non_blocking_mode);
+    m_logger->debug("sent {} bytes of encrypted response to client {}",
+                    message_with_iv.size(),
+                    client_info.client_id);
     if (send_result != NetworkResult::SUCCESS) {
         m_logger->error("failed to send encrypted response to client {}: {}",
                         client_info.client_id,
