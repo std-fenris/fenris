@@ -1,4 +1,5 @@
 #include "client/client.hpp"
+#include "client/colors.hpp"
 #include "client/connection_manager.hpp"
 #include "client/interface.hpp"
 #include "common/crypto_manager.hpp"
@@ -33,42 +34,52 @@ using namespace fenris::common::network;
 
 // Mock implementation of TUI for testing
 class MockTUI : public ITUI {
-public:
-    MockTUI() : m_next_command_index(0), m_connecting(false), m_port_number("7777") {}
+  public:
+    MockTUI()
+        : m_next_command_index(0), m_connecting(false), m_port_number("7777")
+    {
+    }
 
     // Queue commands to be returned when get_command is called
-    void queue_command(const std::vector<std::string>& command) {
+    void queue_command(const std::vector<std::string> &command)
+    {
         std::lock_guard<std::mutex> lock(m_command_mutex);
         m_commands.push_back(command);
     }
 
     // Get the results that were displayed
-    std::vector<std::pair<bool, std::string>> get_displayed_results() {
+    std::vector<std::pair<bool, std::string>> get_displayed_results()
+    {
         std::lock_guard<std::mutex> lock(m_results_mutex);
         return m_displayed_results;
     }
 
     // Clear the displayed results for the next test
-    void clear_displayed_results() {
+    void clear_displayed_results()
+    {
         std::lock_guard<std::mutex> lock(m_results_mutex);
         m_displayed_results.clear();
     }
 
     // ITUI interface implementation
-    std::string get_server_IP() override {
+    std::string get_server_IP() override
+    {
         return "127.0.0.1"; // Always return localhost for testing
     }
 
-    std::string get_port_number() override {
+    std::string get_port_number() override
+    {
         return m_port_number; // Return the port number set by the test
     }
 
-    void set_port_number(const std::string& port_number) {
+    void set_port_number(const std::string &port_number)
+    {
         std::lock_guard<std::mutex> lock(m_command_mutex);
         m_port_number = port_number;
     }
 
-    std::vector<std::string> get_command() override {
+    std::vector<std::string> get_command() override
+    {
         std::lock_guard<std::mutex> lock(m_command_mutex);
         if (m_next_command_index < m_commands.size()) {
             return m_commands[m_next_command_index++];
@@ -78,32 +89,38 @@ public:
         return {"exit"};
     }
 
-    void display_result(bool success, const std::string& result) override {
+    void display_result(bool success, const std::string &result) override
+    {
         std::lock_guard<std::mutex> lock(m_results_mutex);
         m_displayed_results.push_back({success, result});
     }
 
-    void update_current_directory(const std::string& dir) override {
+    void update_current_directory(const std::string &dir) override
+    {
         // Not needed for testing
     }
 
-    std::string get_current_directory() const override {
+    std::string get_current_directory() const override
+    {
         return "/"; // Always return root for testing
     }
 
-    void display_help() override {
+    void display_help() override
+    {
         std::lock_guard<std::mutex> lock(m_results_mutex);
-        m_displayed_results.push_back({true, "Available commands:\n"
-                                             "1. help - Show this help message\n"
-                                             "2. exit - Exit the client\n"});
+        m_displayed_results.push_back({true,
+                                       "Available commands:\n"
+                                       "1. help - Show this help message\n"
+                                       "2. exit - Exit the client\n"});
     }
 
-    ~MockTUI() override {
+    ~MockTUI() override
+    {
         std::lock_guard<std::mutex> lock(m_results_mutex);
         m_displayed_results.clear();
     }
 
-private:
+  private:
     std::vector<std::vector<std::string>> m_commands;
     std::vector<std::pair<bool, std::string>> m_displayed_results;
     std::mutex m_command_mutex;
@@ -115,18 +132,20 @@ private:
 
 // Mock Server implementation for testing
 class MockServer {
-public:
+  public:
     MockServer()
         : m_port(0), m_listen_socket(-1), m_client_socket(-1), m_running(false),
           m_current_dir("/")
     {
     }
 
-    ~MockServer() {
+    ~MockServer()
+    {
         stop();
     }
 
-    bool start() {
+    bool start()
+    {
         m_listen_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (m_listen_socket < 0) {
             perror("MockServer: socket creation failed");
@@ -134,14 +153,20 @@ public:
         }
 
         int yes = 1;
-        setsockopt(m_listen_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        setsockopt(m_listen_socket,
+                   SOL_SOCKET,
+                   SO_REUSEADDR,
+                   &yes,
+                   sizeof(yes));
 
         sockaddr_in server_addr{};
         server_addr.sin_family = AF_INET;
         server_addr.sin_addr.s_addr = INADDR_ANY;
         server_addr.sin_port = 0; // Let OS assign a port
 
-        if (bind(m_listen_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        if (bind(m_listen_socket,
+                 (struct sockaddr *)&server_addr,
+                 sizeof(server_addr)) < 0) {
             perror("MockServer: bind failed");
             close(m_listen_socket);
             m_listen_socket = -1;
@@ -149,7 +174,9 @@ public:
         }
 
         socklen_t len = sizeof(server_addr);
-        if (getsockname(m_listen_socket, (struct sockaddr*)&server_addr, &len) == -1) {
+        if (getsockname(m_listen_socket,
+                        (struct sockaddr *)&server_addr,
+                        &len) == -1) {
             perror("MockServer: getsockname failed");
             close(m_listen_socket);
             m_listen_socket = -1;
@@ -170,7 +197,8 @@ public:
         return true;
     }
 
-    void stop() {
+    void stop()
+    {
         if (!m_running.exchange(false)) {
             return;
         }
@@ -182,7 +210,7 @@ public:
                 addr.sin_family = AF_INET;
                 addr.sin_port = htons(m_port);
                 inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
-                ::connect(wake_socket, (struct sockaddr*)&addr, sizeof(addr));
+                ::connect(wake_socket, (struct sockaddr *)&addr, sizeof(addr));
                 close(wake_socket);
             }
             close(m_listen_socket);
@@ -205,11 +233,13 @@ public:
         std::cout << "MockServer stopped" << std::endl;
     }
 
-    int get_port() const {
+    int get_port() const
+    {
         return m_port;
     }
 
-    std::vector<fenris::Request> get_received_requests() {
+    std::vector<fenris::Request> get_received_requests()
+    {
         std::lock_guard<std::mutex> lock(m_requests_mutex);
         return m_received_requests;
     }
@@ -221,29 +251,33 @@ public:
     }
 
     // Virtual filesystem functions for the mock server
-    void add_file(const std::string& path, const std::string& content) {
+    void add_file(const std::string &path, const std::string &content)
+    {
         std::lock_guard<std::mutex> lock(m_fs_mutex);
         m_files[path] = content;
     }
 
-    void add_directory(const std::string& path) {
+    void add_directory(const std::string &path)
+    {
         std::lock_guard<std::mutex> lock(m_fs_mutex);
         m_directories.insert(path);
     }
 
-    const std::vector<uint8_t>& get_encryption_key() const {
+    const std::vector<uint8_t> &get_encryption_key() const
+    {
         return m_encryption_key;
     }
 
-private:
-    void run() {
+  private:
+    void run()
+    {
         std::cout << "MockServer thread running..." << std::endl;
         while (m_running) {
             struct sockaddr_storage client_addr;
             socklen_t sin_size = sizeof(client_addr);
             int temp_client_socket = accept(m_listen_socket,
-                                          (struct sockaddr*)&client_addr,
-                                          &sin_size);
+                                            (struct sockaddr *)&client_addr,
+                                            &sin_size);
 
             if (!m_running)
                 break; // Check after accept returns
@@ -320,7 +354,9 @@ private:
 
             // Special handling for TERMINATE
             if (request.command() == fenris::RequestType::TERMINATE) {
-                std::cout << "MockServer received TERMINATE, closing connection." << std::endl;
+                std::cout
+                    << "MockServer received TERMINATE, closing connection."
+                    << std::endl;
                 break;
             }
         }
@@ -362,7 +398,8 @@ private:
 
         // Compute the shared secret
         auto [shared_secret, ss_result] =
-            crypto_manager.compute_ecdh_shared_secret(private_key, client_public_key);
+            crypto_manager.compute_ecdh_shared_secret(private_key,
+                                                      client_public_key);
         if (ss_result != crypto::ECDHResult::SUCCESS) {
             std::cerr << "Failed to compute shared secret: "
                       << crypto::ecdh_result_to_string(ss_result) << std::endl;
@@ -464,7 +501,8 @@ private:
     }
 
     // Create a default response based on the request type
-    fenris::Response create_default_response(const fenris::Request& request) {
+    fenris::Response create_default_response(const fenris::Request &request)
+    {
         fenris::Response response;
         response.set_success(true);
 
@@ -530,17 +568,20 @@ private:
     }
 
     // Handler methods for each command type
-    void handle_list_dir_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_list_dir_request(const fenris::Request &request,
+                                 fenris::Response &response)
+    {
         response.set_type(fenris::ResponseType::DIR_LISTING);
         std::string listing = "Directory contents:\n";
 
         std::lock_guard<std::mutex> lock(m_fs_mutex);
-        for (const auto& file : m_files) {
+        for (const auto &file : m_files) {
             if (file.first.find(m_current_dir) == 0) {
-                listing += "F: " + file.first.substr(m_current_dir.length()) + "\n";
+                listing +=
+                    "F: " + file.first.substr(m_current_dir.length()) + "\n";
             }
         }
-        for (const auto& dir : m_directories) {
+        for (const auto &dir : m_directories) {
             if (dir.find(m_current_dir) == 0 && dir != m_current_dir) {
                 listing += "D: " + dir.substr(m_current_dir.length()) + "\n";
             }
@@ -548,13 +589,16 @@ private:
         response.set_data(listing);
     }
 
-    void handle_change_dir_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_change_dir_request(const fenris::Request &request,
+                                   fenris::Response &response)
+    {
         std::string target_dir = request.filename();
         std::lock_guard<std::mutex> lock(m_fs_mutex);
 
         // Simple directory navigation logic
         if (target_dir == "..") {
-            size_t last_slash = m_current_dir.rfind('/', m_current_dir.length() - 2);
+            size_t last_slash =
+                m_current_dir.rfind('/', m_current_dir.length() - 2);
             if (last_slash != std::string::npos) {
                 m_current_dir = m_current_dir.substr(0, last_slash + 1);
             }
@@ -565,7 +609,8 @@ private:
                 dir_path += '/';
             }
 
-            if (m_directories.find(dir_path) != m_directories.end() || dir_path == "/") {
+            if (m_directories.find(dir_path) != m_directories.end() ||
+                dir_path == "/") {
                 m_current_dir = dir_path;
             } else {
                 response.set_success(false);
@@ -594,7 +639,9 @@ private:
         response.set_data("Changed directory to: " + m_current_dir);
     }
 
-    void handle_read_file_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_read_file_request(const fenris::Request &request,
+                                  fenris::Response &response)
+    {
         std::string file_path = request.filename();
         std::lock_guard<std::mutex> lock(m_fs_mutex);
 
@@ -608,7 +655,9 @@ private:
         }
     }
 
-    void handle_create_file_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_create_file_request(const fenris::Request &request,
+                                    fenris::Response &response)
+    {
         std::string file_path = request.filename();
         std::string content = request.data();
 
@@ -619,7 +668,9 @@ private:
         response.set_data("File created: " + file_path);
     }
 
-    void handle_write_file_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_write_file_request(const fenris::Request &request,
+                                   fenris::Response &response)
+    {
         std::string file_path = request.filename();
         std::string content = request.data();
 
@@ -630,7 +681,9 @@ private:
         response.set_data("File written: " + file_path);
     }
 
-    void handle_append_file_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_append_file_request(const fenris::Request &request,
+                                    fenris::Response &response)
+    {
         std::string file_path = request.filename();
         std::string content = request.data();
 
@@ -646,7 +699,9 @@ private:
         }
     }
 
-    void handle_delete_file_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_delete_file_request(const fenris::Request &request,
+                                    fenris::Response &response)
+    {
         std::string file_path = request.filename();
 
         std::lock_guard<std::mutex> lock(m_fs_mutex);
@@ -661,7 +716,9 @@ private:
         }
     }
 
-    void handle_create_dir_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_create_dir_request(const fenris::Request &request,
+                                   fenris::Response &response)
+    {
         std::string dir_path = request.filename();
         if (dir_path.back() != '/') {
             dir_path += '/';
@@ -674,7 +731,9 @@ private:
         response.set_data("Directory created: " + dir_path);
     }
 
-    void handle_delete_dir_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_delete_dir_request(const fenris::Request &request,
+                                   fenris::Response &response)
+    {
         std::string dir_path = request.filename();
         if (dir_path.back() != '/') {
             dir_path += '/';
@@ -684,14 +743,14 @@ private:
         if (m_directories.find(dir_path) != m_directories.end()) {
             // Check if the directory is empty (no files or subdirectories)
             bool is_empty = true;
-            for (const auto& file : m_files) {
+            for (const auto &file : m_files) {
                 if (file.first.find(dir_path) == 0) {
                     is_empty = false;
                     break;
                 }
             }
 
-            for (const auto& dir : m_directories) {
+            for (const auto &dir : m_directories) {
                 if (dir != dir_path && dir.find(dir_path) == 0) {
                     is_empty = false;
                     break;
@@ -714,7 +773,9 @@ private:
         }
     }
 
-    void handle_info_file_request(const fenris::Request& request, fenris::Response& response) {
+    void handle_info_file_request(const fenris::Request &request,
+                                  fenris::Response &response)
+    {
         std::string file_path = request.filename();
 
         std::lock_guard<std::mutex> lock(m_fs_mutex);
@@ -722,9 +783,11 @@ private:
         if (m_files.find(file_path) != m_files.end()) {
             response.set_success(true);
             std::string info = "File: " + file_path + "\n";
-            info += "Size: " + std::to_string(m_files[file_path].size()) + " bytes\n";
+            info += "Size: " + std::to_string(m_files[file_path].size()) +
+                    " bytes\n";
             info += "Permissions: rw-r--r--\n"; // Mock permissions
-            info += "Modified: " + get_current_time_string() + "\n"; // Add mock timestamp
+            info += "Modified: " + get_current_time_string() +
+                    "\n"; // Add mock timestamp
 
             response.set_type(fenris::ResponseType::FILE_INFO);
             auto file_info = response.mutable_file_info();
@@ -740,7 +803,8 @@ private:
     }
 
     // Helper method to get current time as a string for file info
-    std::string get_current_time_string() {
+    std::string get_current_time_string()
+    {
         auto now = std::chrono::system_clock::now();
         auto time = std::chrono::system_clock::to_time_t(now);
         std::string time_str = std::ctime(&time);
@@ -778,8 +842,12 @@ private:
 
 // Client test fixture
 class ClientIntegrationTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+  protected:
+    void SetUp() override
+    {
+        // Disable colors for testing to ensure assertions work with plain text
+        colors::disable_colors();
+
         // Start mock server
         m_mock_server = std::make_unique<MockServer>();
         ASSERT_TRUE(m_mock_server->start());
@@ -797,8 +865,10 @@ protected:
         m_mock_tui->set_port_number(m_port_str);
 
         // Create a custom connection manager with the test port
-        auto connection_manager = std::make_unique<ConnectionManager>(
-            "127.0.0.1", m_port_str, "TestConnectionManager");
+        auto connection_manager =
+            std::make_unique<ConnectionManager>("127.0.0.1",
+                                                m_port_str,
+                                                "TestConnectionManager");
 
         // Force blocking mode for test reliability
         connection_manager->set_non_blocking_mode(false);
@@ -819,7 +889,8 @@ protected:
         // m_mock_tui->queue_command({"connect"});
     }
 
-    void TearDown() override {
+    void TearDown() override
+    {
         if (m_client_thread.joinable()) {
             m_client_thread.join();
         }
@@ -830,14 +901,17 @@ protected:
 
         // Sleep to allow resources to clean up
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        // Re-enable colors for normal usage
+        colors::enable_colors();
     }
 
-    // Start the client in a separate thread and wait for it to process all commands
-    void runClient() {
+    // Start the client in a separate thread and wait for it to process all
+    // commands
+    void runClient()
+    {
         // Start the client in a separate thread
-        m_client_thread = std::thread([this]() {
-            m_client->run();
-        });
+        m_client_thread = std::thread([this]() { m_client->run(); });
 
         // Give client time to connect and stabilize the connection
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -855,14 +929,15 @@ protected:
 
     std::unique_ptr<Client> m_client;
     std::unique_ptr<MockServer> m_mock_server;
-    MockTUI* m_mock_tui; // Raw pointer to TUI owned by the client
+    MockTUI *m_mock_tui; // Raw pointer to TUI owned by the client
     int m_port;
     std::string m_port_str;
     std::thread m_client_thread;
 };
 
 // Basic connection test
-TEST_F(ClientIntegrationTest, ConnectAndDisconnect) {
+TEST_F(ClientIntegrationTest, ConnectAndDisconnect)
+{
     // Just queue exit command - we're already connected in SetUp
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     m_mock_tui->queue_command({"exit"});
@@ -872,12 +947,14 @@ TEST_F(ClientIntegrationTest, ConnectAndDisconnect) {
 
     // Expect at least two results: connection success and disconnect
     ASSERT_GE(results.size(), 2);
-    // Look for the connection success message (might not be the first result now)
+    // Look for the connection success message (might not be the first result
+    // now)
     bool found_connect = false;
-    for (const auto& result : results) {
+    for (const auto &result : results) {
         // Check for a more general connection success message
-        if (result.first &&
-            (result.second.find("connected to server") != std::string::npos)) {
+        std::cout << "Result: " << result.second << std::endl;
+        if (result.first && (result.second.find("Connected to server at") !=
+                             std::string::npos)) {
             found_connect = true;
             break;
         }
@@ -892,7 +969,8 @@ TEST_F(ClientIntegrationTest, ConnectAndDisconnect) {
 }
 
 // Test ping command
-TEST_F(ClientIntegrationTest, PingCommand) {
+TEST_F(ClientIntegrationTest, PingCommand)
+{
     m_mock_tui->queue_command({"ping"});
     m_mock_tui->queue_command({"exit"});
     runClient();
@@ -908,7 +986,7 @@ TEST_F(ClientIntegrationTest, PingCommand) {
 
     // Verify ping request was sent
     bool found_ping = false;
-    for (const auto& request : requests) {
+    for (const auto &request : requests) {
         if (request.command() == fenris::RequestType::PING) {
             found_ping = true;
             break;
@@ -928,7 +1006,8 @@ TEST_F(ClientIntegrationTest, PingCommand) {
 }
 
 // Test ls (list directory) command
-TEST_F(ClientIntegrationTest, ListDirectoryCommand) {
+TEST_F(ClientIntegrationTest, ListDirectoryCommand)
+{
     m_mock_tui->queue_command({"ls"});
     runClient();
 
@@ -941,8 +1020,9 @@ TEST_F(ClientIntegrationTest, ListDirectoryCommand) {
     // Verify dir contents were displayed
     auto results = m_mock_tui->get_displayed_results();
     bool found_listing = false;
-    for (const auto& result : results) {
-        if (result.first && result.second.find("Directory contents:") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first &&
+            result.second.find("Directory contents:") != std::string::npos) {
             found_listing = true;
             // Should contain our test files and directories
             EXPECT_NE(result.second.find("file1.txt"), std::string::npos);
@@ -954,7 +1034,8 @@ TEST_F(ClientIntegrationTest, ListDirectoryCommand) {
 }
 
 // Test cd (change directory) command
-TEST_F(ClientIntegrationTest, ChangeDirectoryCommand) {
+TEST_F(ClientIntegrationTest, ChangeDirectoryCommand)
+{
     m_mock_tui->queue_command({"cd", "dir1"});
     m_mock_tui->queue_command({"ls"});
     runClient();
@@ -972,11 +1053,13 @@ TEST_F(ClientIntegrationTest, ChangeDirectoryCommand) {
     bool dir_changed = false;
     bool found_nested = false;
 
-    for (const auto& result : results) {
-        if (result.first && result.second.find("Changed directory") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first &&
+            result.second.find("Changed directory") != std::string::npos) {
             dir_changed = true;
         }
-        if (result.first && result.second.find("nested.txt") != std::string::npos) {
+        if (result.first &&
+            result.second.find("nested.txt") != std::string::npos) {
             found_nested = true;
         }
     }
@@ -986,7 +1069,8 @@ TEST_F(ClientIntegrationTest, ChangeDirectoryCommand) {
 }
 
 // Test cat (read file) command
-TEST_F(ClientIntegrationTest, ReadFileCommand) {
+TEST_F(ClientIntegrationTest, ReadFileCommand)
+{
     m_mock_tui->queue_command({"cat", "/file1.txt"});
     runClient();
 
@@ -1001,8 +1085,9 @@ TEST_F(ClientIntegrationTest, ReadFileCommand) {
     auto results = m_mock_tui->get_displayed_results();
     bool found_content = false;
 
-    for (const auto& result : results) {
-        if (result.first && result.second.find("This is file 1 content") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first &&
+            result.second.find("This is file 1 content") != std::string::npos) {
             found_content = true;
             break;
         }
@@ -1012,7 +1097,8 @@ TEST_F(ClientIntegrationTest, ReadFileCommand) {
 }
 
 // Test write command
-TEST_F(ClientIntegrationTest, WriteFileCommand) {
+TEST_F(ClientIntegrationTest, WriteFileCommand)
+{
     m_mock_tui->queue_command({"write", "/newfile.txt", "New file content"});
     m_mock_tui->queue_command({"cat", "/newfile.txt"});
     runClient();
@@ -1031,11 +1117,13 @@ TEST_F(ClientIntegrationTest, WriteFileCommand) {
     bool write_success = false;
     bool read_success = false;
 
-    for (const auto& result : results) {
-        if (result.first && result.second.find("File written") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first &&
+            result.second.find("File written") != std::string::npos) {
             write_success = true;
         }
-        if (result.first && result.second.find("New file content") != std::string::npos) {
+        if (result.first &&
+            result.second.find("New file content") != std::string::npos) {
             read_success = true;
         }
     }
@@ -1045,7 +1133,8 @@ TEST_F(ClientIntegrationTest, WriteFileCommand) {
 }
 
 // Test append command
-TEST_F(ClientIntegrationTest, AppendFileCommand) {
+TEST_F(ClientIntegrationTest, AppendFileCommand)
+{
     m_mock_tui->queue_command({"append", "/file1.txt", " - APPENDED TEXT"});
     m_mock_tui->queue_command({"cat", "/file1.txt"});
     runClient();
@@ -1064,12 +1153,14 @@ TEST_F(ClientIntegrationTest, AppendFileCommand) {
     bool append_success = false;
     bool read_success = false;
 
-    for (const auto& result : results) {
-        if (result.first && result.second.find("Content appended") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first &&
+            result.second.find("Content appended") != std::string::npos) {
             append_success = true;
         }
         if (result.first &&
-            result.second.find("This is file 1 content - APPENDED TEXT") != std::string::npos) {
+            result.second.find("This is file 1 content - APPENDED TEXT") !=
+                std::string::npos) {
             read_success = true;
         }
     }
@@ -1079,7 +1170,8 @@ TEST_F(ClientIntegrationTest, AppendFileCommand) {
 }
 
 // Test rm (remove file) command
-TEST_F(ClientIntegrationTest, RemoveFileCommand) {
+TEST_F(ClientIntegrationTest, RemoveFileCommand)
+{
     m_mock_tui->queue_command({"rm", "/file2.txt"});
     m_mock_tui->queue_command({"cat", "/file2.txt"}); // Should fail now
     runClient();
@@ -1097,11 +1189,13 @@ TEST_F(ClientIntegrationTest, RemoveFileCommand) {
     bool delete_success = false;
     bool read_failure = false;
 
-    for (const auto& result : results) {
-        if (result.first && result.second.find("File deleted") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first &&
+            result.second.find("File deleted") != std::string::npos) {
             delete_success = true;
         }
-        if (!result.first && result.second.find("File not found") != std::string::npos) {
+        if (!result.first &&
+            result.second.find("File not found") != std::string::npos) {
             read_failure = true;
         }
     }
@@ -1111,7 +1205,8 @@ TEST_F(ClientIntegrationTest, RemoveFileCommand) {
 }
 
 // Test mkdir (make directory) command
-TEST_F(ClientIntegrationTest, MakeDirectoryCommand) {
+TEST_F(ClientIntegrationTest, MakeDirectoryCommand)
+{
     m_mock_tui->queue_command({"mkdir", "/newdir"});
     m_mock_tui->queue_command({"cd", "/newdir"});
     m_mock_tui->queue_command({"ls"});
@@ -1131,11 +1226,13 @@ TEST_F(ClientIntegrationTest, MakeDirectoryCommand) {
     bool mkdir_success = false;
     bool cd_success = false;
 
-    for (const auto& result : results) {
-        if (result.first && result.second.find("Directory created") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first &&
+            result.second.find("Directory created") != std::string::npos) {
             mkdir_success = true;
         }
-        if (result.first && result.second.find("Changed directory") != std::string::npos &&
+        if (result.first &&
+            result.second.find("Changed directory") != std::string::npos &&
             result.second.find("newdir") != std::string::npos) {
             cd_success = true;
         }
@@ -1146,7 +1243,8 @@ TEST_F(ClientIntegrationTest, MakeDirectoryCommand) {
 }
 
 // Test rmdir (remove directory) command
-TEST_F(ClientIntegrationTest, RemoveDirectoryCommand) {
+TEST_F(ClientIntegrationTest, RemoveDirectoryCommand)
+{
     m_mock_tui->queue_command({"rmdir", "/dir2"});
     m_mock_tui->queue_command({"cd", "/dir2"}); // Should fail
     runClient();
@@ -1164,11 +1262,13 @@ TEST_F(ClientIntegrationTest, RemoveDirectoryCommand) {
     bool rmdir_success = false;
     bool cd_failure = false;
 
-    for (const auto& result : results) {
-        if (result.first && result.second.find("Directory deleted") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first &&
+            result.second.find("Directory deleted") != std::string::npos) {
             rmdir_success = true;
         }
-        if (!result.first && result.second.find("Directory not found") != std::string::npos) {
+        if (!result.first &&
+            result.second.find("Directory not found") != std::string::npos) {
             cd_failure = true;
         }
     }
@@ -1178,7 +1278,8 @@ TEST_F(ClientIntegrationTest, RemoveDirectoryCommand) {
 }
 
 // Test file info command
-TEST_F(ClientIntegrationTest, FileInfoCommand) {
+TEST_F(ClientIntegrationTest, FileInfoCommand)
+{
     m_mock_tui->queue_command({"info", "/file1.txt"});
     runClient();
 
@@ -1204,7 +1305,8 @@ TEST_F(ClientIntegrationTest, FileInfoCommand) {
 }
 
 // Test invalid command
-TEST_F(ClientIntegrationTest, InvalidCommand) {
+TEST_F(ClientIntegrationTest, InvalidCommand)
+{
     m_mock_tui->queue_command({"invalid_command"});
     runClient();
 
@@ -1212,7 +1314,8 @@ TEST_F(ClientIntegrationTest, InvalidCommand) {
     auto results = m_mock_tui->get_displayed_results();
     bool found_error = false;
     for (const auto &result : results) {
-        if (!result.first && result.second.find("Invalid command") != std::string::npos) {
+        if (!result.first &&
+            result.second.find("Invalid command") != std::string::npos) {
             found_error = true;
             break;
         }
@@ -1222,7 +1325,8 @@ TEST_F(ClientIntegrationTest, InvalidCommand) {
 }
 
 // Test help command
-TEST_F(ClientIntegrationTest, HelpCommand) {
+TEST_F(ClientIntegrationTest, HelpCommand)
+{
     m_mock_tui->queue_command({"help"});
     runClient();
 
@@ -1231,7 +1335,8 @@ TEST_F(ClientIntegrationTest, HelpCommand) {
     bool found_help = false;
 
     for (const auto &result : results) {
-        if (result.first && result.second.find("Available commands") != std::string::npos) {
+        if (result.first &&
+            result.second.find("Available commands") != std::string::npos) {
             found_help = true;
             break;
         }
@@ -1241,11 +1346,13 @@ TEST_F(ClientIntegrationTest, HelpCommand) {
 }
 
 // Test multiple commands in sequence
-TEST_F(ClientIntegrationTest, MultipleCommandSequence) {
+TEST_F(ClientIntegrationTest, MultipleCommandSequence)
+{
     // Create a directory, create a file in it, read it, then delete both
     m_mock_tui->queue_command({"mkdir", "/test_seq"});
     m_mock_tui->queue_command({"cd", "/test_seq"});
-    m_mock_tui->queue_command({"write", "seq_file.txt", "Sequential test content"});
+    m_mock_tui->queue_command(
+        {"write", "seq_file.txt", "Sequential test content"});
     m_mock_tui->queue_command({"cat", "seq_file.txt"});
     m_mock_tui->queue_command({"rm", "seq_file.txt"});
     m_mock_tui->queue_command({"cd", ".."});
@@ -1269,8 +1376,9 @@ TEST_F(ClientIntegrationTest, MultipleCommandSequence) {
     auto results = m_mock_tui->get_displayed_results();
     bool found_content = false;
 
-    for (const auto& result : results) {
-        if (result.first && result.second.find("Sequential test content") != std::string::npos) {
+    for (const auto &result : results) {
+        if (result.first && result.second.find("Sequential test content") !=
+                                std::string::npos) {
             found_content = true;
             break;
         }
@@ -1279,9 +1387,9 @@ TEST_F(ClientIntegrationTest, MultipleCommandSequence) {
     EXPECT_TRUE(found_content);
 }
 
-
 // Edge case: test with empty responses
-TEST_F(ClientIntegrationTest, EmptyResponsesFromServer) {
+TEST_F(ClientIntegrationTest, EmptyResponsesFromServer)
+{
     // Set up empty responses for multiple commands
     m_mock_tui->queue_command({"ls"});
     m_mock_tui->queue_command({"cat", "/file1.txt"});
@@ -1295,7 +1403,8 @@ TEST_F(ClientIntegrationTest, EmptyResponsesFromServer) {
 }
 
 // Edge case: test with non-existent files/directories
-TEST_F(ClientIntegrationTest, NonExistentResources) {
+TEST_F(ClientIntegrationTest, NonExistentResources)
+{
     m_mock_tui->queue_command({"cat", "/nonexistent.txt"});
     m_mock_tui->queue_command({"cd", "/nonexistent/"});
     m_mock_tui->queue_command({"rm", "/nonexistent.txt"});
@@ -1307,8 +1416,9 @@ TEST_F(ClientIntegrationTest, NonExistentResources) {
     auto results = m_mock_tui->get_displayed_results();
     int error_count = 0;
 
-    for (const auto& result : results) {
-        if (!result.first && result.second.find("not found") != std::string::npos) {
+    for (const auto &result : results) {
+        if (!result.first &&
+            result.second.find("not found") != std::string::npos) {
             error_count++;
         }
     }

@@ -1,9 +1,10 @@
+#include "client/colors.hpp"
 #include "client/response_manager.hpp"
 #include "fenris.pb.h"
 #include "gtest/gtest.h"
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace fenris {
 namespace client {
@@ -12,6 +13,18 @@ namespace tests {
 class ResponseManagerTest : public ::testing::Test {
   protected:
     ResponseManager response_manager;
+
+    void SetUp() override
+    {
+        // Disable colors for testing to ensure assertions work with plain text
+        colors::disable_colors();
+    }
+
+    void TearDown() override
+    {
+        // Re-enable colors for normal usage
+        colors::enable_colors();
+    }
 };
 
 TEST_F(ResponseManagerTest, HandlePongResponse)
@@ -63,18 +76,23 @@ TEST_F(ResponseManagerTest, HandleFileInfoResponse)
     file_info->set_name("test.txt");
     file_info->set_size(1024);
     file_info->set_is_directory(false);
-    file_info->set_permissions(0644); // rw-r--r--
+    file_info->set_permissions(0644);         // rw-r--r--
     file_info->set_modified_time(1678886400); // Example timestamp
 
     auto result = response_manager.handle_response(response);
-    ASSERT_EQ(result.size(), 6); // Success + 5 lines (Name, Size, Type, Perms, Modified)
+    ASSERT_EQ(result.size(),
+              6); // Success + 5 lines (Name, Size, Type, Perms, Modified)
     EXPECT_EQ(result[0], "Success");
     EXPECT_NE(result[1].find("test.txt"), std::string::npos);
-    EXPECT_NE(result[2].find("1.00 KB"), std::string::npos); // Check for formatted size
-    EXPECT_NE(result[3].find("Modified:"), std::string::npos); // Check timestamp line start
-    EXPECT_NE(result[4].find("File"), std::string::npos);   // Check for type
-    EXPECT_NE(result[5].find("rw-r--r--"), std::string::npos); // Check for permissions string
-    EXPECT_NE(result[5].find("644"), std::string::npos);       // Check for octal permissions
+    EXPECT_NE(result[2].find("1.00 KB"),
+              std::string::npos); // Check for formatted size
+    EXPECT_NE(result[3].find("Modified:"),
+              std::string::npos); // Check timestamp line start
+    EXPECT_NE(result[4].find("File"), std::string::npos); // Check for type
+    EXPECT_NE(result[5].find("rw-r--r--"),
+              std::string::npos); // Check for permissions string
+    EXPECT_NE(result[5].find("644"),
+              std::string::npos); // Check for octal permissions
 }
 
 TEST_F(ResponseManagerTest, HandleFileContentResponseText)
@@ -114,27 +132,27 @@ TEST_F(ResponseManagerTest, HandleDirectoryListingResponse)
 
     auto *listing = response.mutable_directory_listing();
 
-    auto* entry1 = listing->add_entries();
+    auto *entry1 = listing->add_entries();
     entry1->set_name("file.txt");
     entry1->set_size(500);
     entry1->set_is_directory(false);
     entry1->set_modified_time(1678886400);
     entry1->set_permissions(0644); // Example permissions
 
-    auto* entry2 = listing->add_entries();
-    entry2->set_name("subdir"); // Name without trailing slash expected from proto
+    auto *entry2 = listing->add_entries();
+    entry2->set_name(
+        "subdir"); // Name without trailing slash expected from proto
     entry2->set_size(4096);
     entry2->set_is_directory(true);
     entry2->set_modified_time(1678886400);
     entry2->set_permissions(0755); // Example permissions
 
-    auto* entry3 = listing->add_entries();
+    auto *entry3 = listing->add_entries();
     entry3->set_name(".hidden");
     entry3->set_size(10);
     entry3->set_is_directory(false);
     entry3->set_modified_time(1678886400);
     entry3->set_permissions(0600); // Example permissions
-
 
     auto result = response_manager.handle_response(response);
 
@@ -164,7 +182,8 @@ TEST_F(ResponseManagerTest, HandleTerminatedResponse)
 
     auto result = response_manager.handle_response(response);
     ASSERT_EQ(result.size(), 3);
-    EXPECT_EQ(result[0], "Success"); // Or maybe "Terminated"? Let's stick to Success/Error convention
+    EXPECT_EQ(result[0], "Success"); // Or maybe "Terminated"? Let's stick to
+                                     // Success/Error convention
     EXPECT_EQ(result[1], "Server connection terminated");
 }
 
@@ -184,7 +203,6 @@ TEST_F(ResponseManagerTest, HandleUnknownResponseType)
     std::string expected_error = "Unknown response type";
     EXPECT_EQ(result[1], expected_error);
 }
-
 
 } // namespace tests
 } // namespace client
