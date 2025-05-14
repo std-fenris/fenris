@@ -129,7 +129,6 @@ bool Client::process_command(const std::vector<std::string> &command_parts)
 
     // Extract success status from the first element (following ResponseManager
     // convention)
-    std::cout << "response success" << std::endl;
     bool success =
         (formatted_response.size() > 0 && formatted_response[0] == "Success");
 
@@ -147,7 +146,7 @@ bool Client::process_command(const std::vector<std::string> &command_parts)
 
     // Update current directory if it was a cd command that succeeded
     if (command_parts[0] == "cd" && success && command_parts.size() > 1) {
-        m_tui->update_current_directory(command_parts[1]);
+        m_tui->update_current_directory(response.data());
     }
 
     return true;
