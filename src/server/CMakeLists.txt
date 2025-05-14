@@ -32,7 +32,7 @@ add_executable(server main.cpp)
 # Link libraries to the client executable
 target_link_libraries(server
     PRIVATE
-    fenris_client
+    fenris_server
     fenris_common
     fenris_proto
 )
