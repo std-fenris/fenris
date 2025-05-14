@@ -2,6 +2,7 @@
 #define FENRIS_SERVER_REQUEST_MANAGER_HPP
 
 #include "common/file_operations.hpp"
+#include "common/logging.hpp"
 #include "fenris.pb.h"
 #include "server/client_info.hpp"
 #include "server/connection_manager.hpp"
@@ -11,7 +12,14 @@ namespace server {
 
 class ClientHandler : public IClientHandler {
   public:
-    explicit ClientHandler();
+    // Default constructor that uses the server's main logger
+    ClientHandler() : m_logger(common::get_logger("fenris_server")) {}
+
+    // Constructor that accepts a specific logger name
+    explicit ClientHandler(const std::string &logger_name)
+        : m_logger(common::get_logger(logger_name))
+    {
+    }
 
     bool step_directory_with_mutex(std::string &current_directory,
                                    const std::string &new_directory,
@@ -35,9 +43,12 @@ class ClientHandler : public IClientHandler {
     fenris::Response handle_request(const fenris::Request &request,
                                     ClientInfo &client_info);
 
-    void initialize_file_system_tree();
+    // void initialize_file_system_tree();
 
     FileSystemTree FST;
+
+  private:
+    common::Logger m_logger;
 };
 
 } // namespace server
