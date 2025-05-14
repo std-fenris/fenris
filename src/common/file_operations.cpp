@@ -290,7 +290,12 @@ get_file_info(const std::string &filepath)
     if (ec) {
         return {file_info, system_error_to_file_operation_result(ec)};
     }
-    file_info.set_modified_time(last_write.time_since_epoch().count());
+
+    auto systime = std::chrono::file_clock::to_sys(last_write);
+    auto unix_timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+                              systime.time_since_epoch())
+                              .count();
+    file_info.set_modified_time(static_cast<uint64_t>(unix_timestamp));
 
     // Get permissions
     fs::file_status status = fs::status(filepath, ec);
@@ -397,7 +402,11 @@ list_directory(const std::string &dirpath)
     }
 
     for (const auto &entry : entries) {
-        std::string full_path = (fs::path(dirpath) / entry).string();
+        fs::path dir_path(dirpath);
+        fs::path entry_path(entry);
+        std::string full_path =
+            (dir_path / entry_path).lexically_normal().string();
+
         auto [file_info, result] = get_file_info(full_path);
         if (result != FileOperationResult::SUCCESS) {
             return {file_info_list, result};
