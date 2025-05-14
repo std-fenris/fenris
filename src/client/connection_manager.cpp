@@ -301,6 +301,9 @@ std::optional<fenris::Response> ConnectionManager::receive_response()
     NetworkResult recv_result = receive_prefixed_data(m_server_info.socket,
                                                       encrypted_data,
                                                       m_non_blocking_mode);
+
+    m_logger->debug("received {} bytes of encrypted data",
+                    encrypted_data.size());
     if (recv_result != NetworkResult::SUCCESS) {
         m_logger->error("failed to receive response: {}",
                         network_result_to_string(recv_result));
