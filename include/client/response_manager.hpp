@@ -23,6 +23,11 @@ class ResponseManager {
      */
     ResponseManager();
 
+    explicit ResponseManager(const std::string &logger_name)
+        : m_logger(common::get_logger(logger_name))
+    {
+    }
+
     /**
      * @brief Process a server response and format it for display
      * @param response The deserialized Protocol Buffer response
