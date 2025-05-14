@@ -11,6 +11,7 @@ set(CLIENT_SOURCES
     interface.cpp
     request_manager.cpp
     response_manager.cpp
+    colors.cpp
 )
 
 # Create client executable
