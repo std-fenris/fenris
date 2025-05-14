@@ -36,7 +36,6 @@ TUI::TUI() : curr_dir("/")
         {"upload", "Upload a file to the server (upload <local_file>)"},
         {"ping", "Check if server is responsive (ping)"},
         {"write", "Create a new file with content (write <file> <content>)"},
-        {"append", "Append content to existing file (append <file> <content>)"},
         {"rm", "Remove a file (rm <file>)"},
         {"info", "Display file information (info <file>)"},
         {"mkdir", "Create a new directory (mkdir <directory>)"},
@@ -194,14 +193,10 @@ bool TUI::is_prefix(const std::string &str, const std::string &prefix)
 
 void TUI::display_result(bool success, const std::string &result)
 {
-    if (success) {
-        if (result.empty()) {
-            std::cout << "Command completed successfully." << std::endl;
-        } else {
-            std::cout << result << std::endl;
-        }
+    if (result.empty()) {
+        std::cout << "Command completed successfully." << std::endl;
     } else {
-        std::cout << "Error: " << result << std::endl;
+        std::cout << result << std::endl;
     }
 }
 
