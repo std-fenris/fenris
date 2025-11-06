@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Add cmake directory to module path
 list(APPEND CMAKE_MODULE_PATH "cmake")
 
@@ -85,7 +87,7 @@ add_subdirectory(src/client)
 add_subdirectory(src/server)
 
 if(UNIT_TESTING)
-  enable_testing()
-  message(STATUS "Build unit tests for the project. Tests should always be found in the tests folder\n")
-  add_subdirectory(tests)
+    enable_testing()
+    message(STATUS "Build unit tests for the project. Tests should always be found in the tests folder\n")
+    add_subdirectory(tests)
 endif()
