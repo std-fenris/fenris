@@ -26,10 +26,15 @@ target_link_libraries(fenris_server
     fenris_common
 )
 
-# Client executable
+# Server executable
 add_executable(server main.cpp)
 
-# Link libraries to the client executable
+# Set output directory to build/bin
+set_target_properties(server PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Link libraries to the server executable
 target_link_libraries(server
     PRIVATE
     fenris_server
@@ -37,7 +42,7 @@ target_link_libraries(server
     fenris_proto
 )
 # Install the server executable
-install(TARGETS fenris_server
+install(TARGETS server
     RUNTIME DESTINATION bin
 )
 

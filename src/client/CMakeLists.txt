@@ -29,6 +29,11 @@ target_link_libraries(fenris_client
 # Client executable
 add_executable(client main.cpp)
 
+# Set output directory to build/bin
+set_target_properties(client PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
 # Link libraries to the client executable
 target_link_libraries(client
     PRIVATE
@@ -38,7 +43,7 @@ target_link_libraries(client
 )
 
 # Install the client executable
-install(TARGETS client
+install(TARGETS fenris_client
     RUNTIME DESTINATION bin
 )
 
