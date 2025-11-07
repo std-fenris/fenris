@@ -17,6 +17,16 @@ RequestManager::generate_request(const std::vector<std::string> &args)
     // Get the command from the first argument
     const std::string &cmd = args[0];
 
+    // Handle special client-side commands that map to other request types
+    if (cmd == "upload") {
+        if (args.size() < 3) {
+            m_logger->error("upload command requires a local file path and "
+                            "remote filename");
+            return std::nullopt;
+        }
+        return upload_file_request(args, 1);
+    }
+
     // Find the command in our map
     auto cmd_iter = m_command_map.find(cmd);
     if (cmd_iter == m_command_map.end()) {
@@ -242,6 +252,37 @@ RequestManager::append_file_request(const std::vector<std::string> &args,
             }
             request.set_data(content.str());
         }
+    }
+
+    return request;
+}
+
+fenris::Request
+RequestManager::upload_file_request(const std::vector<std::string> &args,
+                                    size_t start_idx)
+{
+    fenris::Request request;
+    request.set_command(fenris::RequestType::WRITE_FILE);
+
+    // args[start_idx] is the local file path to read from
+    // args[start_idx + 1] is the remote filename to create
+    std::string local_path = args[start_idx];
+    std::string remote_filename = args[start_idx + 1];
+
+    request.set_filename(remote_filename);
+
+    // Read content from local file
+    std::ifstream file(local_path, std::ios::binary);
+    if (!file) {
+        m_logger->error("could not open local file '{}' for upload",
+                        local_path);
+    } else {
+        std::string content((std::istreambuf_iterator<char>(file)),
+                            std::istreambuf_iterator<char>());
+        request.set_data(content);
+        m_logger->info("read {} bytes from '{}' for upload",
+                       content.size(),
+                       local_path);
     }
 
     return request;

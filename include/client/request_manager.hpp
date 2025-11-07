@@ -57,6 +57,8 @@ class RequestManager {
                                        size_t start_idx);
     fenris::Request append_file_request(const std::vector<std::string> &args,
                                         size_t start_idx);
+    fenris::Request upload_file_request(const std::vector<std::string> &args,
+                                        size_t start_idx);
 };
 
 } // namespace client
