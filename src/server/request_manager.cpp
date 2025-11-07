@@ -138,32 +138,44 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
         break;
     }
 
-    std::shared_ptr<Node> new_node = FST.root;
-    new_node->access_count++;
+    std::shared_ptr<Node> new_node;
+    uint32_t new_depth;
+    std::string new_directory;
 
-    uint32_t new_depth = 0;
-    std::string new_directory = client_info.current_directory;
+    // Check if client has an established location
+    if (client_info.current_node != nullptr) {
+        // Use client's current location as starting point
+        new_node = client_info.current_node;
+        new_depth = client_info.depth;
+        new_directory = client_info.current_directory;
+        // No need to increment access_count - we're just referencing it
+        // temporarily
+    } else {
+        // Client not initialized yet, start from root
+        new_node = FST.root;
+        new_node->access_count++;
+        new_depth = 0;
+        new_directory = "/";
+    }
+
     uint32_t ind = 0;
     try {
-        m_logger->debug("Navigating to client's current directory: '{}'",
-                        client_info.current_directory);
-        change_directory("/",
-                         client_info.current_directory,
-                         new_depth,
-                         new_node);
+        m_logger->debug("Starting from directory: '{}'", new_directory);
 
-        m_logger->debug("Changing directory for request filename: '{}'",
+        m_logger->debug("Navigating for request filename: '{}'",
                         request.filename());
-        std::tie(new_directory, ind) =
-            change_directory(client_info.current_directory,
-                             request.filename(),
-                             new_depth,
-                             new_node);
+        std::tie(new_directory, ind) = change_directory(new_directory,
+                                                        request.filename(),
+                                                        new_depth,
+                                                        new_node);
 
     } catch (const std::exception &e) {
         m_logger->error("Exception during path navigation: {}", e.what());
         response.set_error_message("Invalid Path!");
-        destroy_node(new_directory, new_depth, new_node);
+        // Only clean up if we created a fresh navigation from root
+        if (client_info.current_node == nullptr) {
+            destroy_node(new_directory, new_depth, new_node);
+        }
         return response;
     }
 
@@ -455,9 +467,15 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
         std::swap(new_directory, client_info.current_directory);
         std::swap(new_node, client_info.current_node);
         std::swap(new_depth, client_info.depth);
+
+        if (new_node != nullptr) {
+            destroy_node(new_directory, new_depth, new_node);
+        }
+
         response.set_type(fenris::ResponseType::SUCCESS);
         response.set_success(true);
-        m_logger->debug("Changed directory to '{}'", client_info.current_directory);
+        m_logger->debug("Changed directory to '{}'",
+                        client_info.current_directory);
         response.set_data(client_info.current_directory);
         break;
     }
@@ -482,7 +500,7 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
             m_logger->debug("Directory deleted successfully");
             response.set_type(fenris::ResponseType::SUCCESS);
             response.set_success(true);
-            response.set_data("DELETE_DIRECTORY");
+            response.set_data("Directory deleted successfully");
             FST.remove_node(filename);
         } else if (result == common::FileOperationResult::DIRECTORY_NOT_EMPTY) {
             m_logger->warn("Directory is not empty: '{}'", filename);
@@ -497,6 +515,28 @@ fenris::Response ClientHandler::handle_request(const fenris::Request &request,
         m_logger->warn("Unknown command: {}",
                        static_cast<int>(request.command()));
         response.set_error_message("Unknown command");
+    }
+
+    // Clean up the temporary navigation path (except for CHANGE_DIR which
+    // handles it separately)
+    if (request.command() != fenris::RequestType::CHANGE_DIR &&
+        request.command() != fenris::RequestType::PING &&
+        request.command() != fenris::RequestType::TERMINATE) {
+
+        // If client had an established location, we need to navigate back to it
+        if (client_info.current_node != nullptr) {
+            // Navigate back to client's original position
+            while (new_directory != client_info.current_directory &&
+                   new_directory != "/") {
+                step_directory_with_mutex(new_directory,
+                                          "..",
+                                          new_depth,
+                                          new_node);
+            }
+        } else {
+            // Client wasn't initialized, clean up the path we created from root
+            destroy_node(new_directory, new_depth, new_node);
+        }
     }
 
     return response;
